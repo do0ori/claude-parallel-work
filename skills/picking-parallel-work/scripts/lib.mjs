@@ -32,9 +32,8 @@ export const DEFAULTS = {
     launch: 'print',
     /**
      * 선점할 때 Project Status 를 이 값으로 옮긴다. null 이면 옮기지 않는다.
-     * 적지 않으면 모드가 정한다 — claimStatusFor 를 보라.
      */
-    // claimStatus: 모드에 맡기기 위해 일부러 비워 둔다
+    // claimStatus: 적지 않으면 claimStatusFor 가 정한다
 };
 
 /**
@@ -76,7 +75,7 @@ export function git(args) {
 /** 실패 원인 중 사람이 읽을 만한 첫 줄. */
 export function firstLine(err) {
     const text = String(err.stderr || err.message || '').trim();
-    return text.split('\n')[0] || '알 수 없는 오류';
+    return text.split('\n')[0] || 'unknown error';
 }
 
 /** gh 호출. 실패해도 전체를 죽이지 않고 null 을 돌려준다. */
@@ -84,7 +83,7 @@ export function ghJson(args) {
     try {
         return JSON.parse(run('gh', args));
     } catch (err) {
-        warnings.push(`gh ${args.slice(0, 2).join(' ')} 실패 — ${firstLine(err)}`);
+        warnings.push(`gh ${args.slice(0, 2).join(' ')} failed — ${firstLine(err)}`);
         return null;
     }
 }
@@ -94,7 +93,7 @@ export function ghText(args) {
     try {
         return run('gh', args).trim() || null;
     } catch (err) {
-        warnings.push(`gh ${args.slice(0, 2).join(' ')} 실패 — ${firstLine(err)}`);
+        warnings.push(`gh ${args.slice(0, 2).join(' ')} failed — ${firstLine(err)}`);
         return null;
     }
 }
@@ -114,7 +113,7 @@ export function loadConfig(root) {
         return {...DEFAULTS, ...JSON.parse(fs.readFileSync(file, 'utf8'))};
     } catch (err) {
         // 설정이 깨졌으면 조용히 기본값으로 넘어가지 않는다. 순위가 말없이 달라진다.
-        throw new Error(`${CONFIG_PATH} 를 읽을 수 없다 — ${err.message}`);
+        throw new Error(`Could not read ${CONFIG_PATH} — ${err.message}`);
     }
 }
 
@@ -141,8 +140,8 @@ export function resolveProjectNumber(owner, config) {
 
     warnings.push(
         projects.length === 0
-            ? 'GitHub Project 를 찾지 못했다'
-            : `Project 가 ${projects.length} 개라 어느 것인지 정하지 못했다. ${CONFIG_PATH} 에 projectNumber 를 지정하라.`
+            ? 'No GitHub Project found'
+            : `Found ${projects.length} Projects and cannot tell which to use. Set projectNumber in ${CONFIG_PATH}.`
     );
     return null;
 }
@@ -158,6 +157,6 @@ export function uniqueWarnings() {
 export function printWarnings() {
     const list = uniqueWarnings();
     if (list.length === 0) return;
-    process.stdout.write('\n확인이 필요한 점\n');
+    process.stdout.write('\nWorth checking\n');
     for (const w of list) process.stdout.write(`  - ${w}\n`);
 }

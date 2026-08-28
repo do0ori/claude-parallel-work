@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 병렬 작업 고르기 — 지금 진행 중인 작업과 겹치지 않는 다음 이슈를 찾아 순위를 매긴다.
+ * 병렬 작업 고르기 — 지금 In flight과 겹치지 않는 다음 이슈를 찾아 순위를 매긴다.
  *
  * 여러 Claude 세션을 워크트리마다 하나씩 띄워 병렬로 굴릴 때, 사람이 매번
  * "지금 뭐가 돌고 있더라"를 기억해서 겹치지 않는 일감을 고르는 건 오래 못 간다.
@@ -8,7 +8,7 @@
  * 선점은 판단이 끝난 뒤 스킬이 별도로 수행한다.
  *
  * 조사하는 것
- *   1. 진행 중인 워크트리와 각각이 점유한 영역 (변경 파일 → 영역, 없으면 브랜치 접두사)
+ *   1. 진행 중인 워크트리와 각각이 점유한 영역 (changed files → 영역, 없으면 브랜치 접두사)
  *   2. 열린 PR 과 그 PR 이 참조하는 이슈
  *   3. 열린 이슈 + GitHub Project 의 Priority / Status
  *
@@ -63,7 +63,7 @@ function loadAreaGlobs(root, config) {
         if (entry.name.startsWith('.') || NON_AREA_DIRS.has(entry.name)) continue;
         areas.set(entry.name, [`${entry.name}/**`]);
     }
-    warnings.push(`${config.areaSource} 가 없어 최상위 디렉터리를 영역으로 썼다: ${[...areas.keys()].join(', ')}`);
+    warnings.push(`No ${config.areaSource}, so top-level directories were used as areas: ${[...areas.keys()].join(', ')}`);
     return areas;
 }
 
@@ -93,7 +93,7 @@ function parseLabelerConfig(text, sourceName) {
             inGlobList = false;
             continue;
         }
-        if (!area) throw new Error(`${sourceName}: 최상위 라벨 키보다 먼저 내용이 나왔다 — "${line}"`);
+        if (!area) throw new Error(`${sourceName}: content appeared before any top-level label key — "${line}"`);
 
         const trimmed = line.trim();
         if (trimmed === '- changed-files:') {
@@ -118,7 +118,7 @@ function parseLabelerConfig(text, sourceName) {
             areas.get(area).push(unquote(trimmed.slice(2)));
             continue;
         }
-        throw new Error(`${sourceName}: 읽을 줄 모르는 줄 — "${line}"`);
+        throw new Error(`${sourceName}: cannot parse this line — "${line}"`);
     }
     return areas;
 }
@@ -189,7 +189,7 @@ function areaLookup(areaNames) {
         const key = normalizeArea(name);
         if (!key) continue;
         if (byNorm.has(key)) {
-            warnings.push(`영역 "${name}" 과 "${byNorm.get(key)}" 이 같은 이름으로 읽힌다. 앞의 것만 쓴다.`);
+            warnings.push(`Areas "${name}" and "${byNorm.get(key)}" normalize to the same name. Keeping the first.`);
             continue;
         }
         byNorm.set(key, name);
@@ -197,7 +197,7 @@ function areaLookup(areaNames) {
     return byNorm;
 }
 
-// --- 진행 중인 작업 ----------------------------------------------------------
+// --- In flight ----------------------------------------------------------
 
 /** git worktree list --porcelain 을 파싱한다. 첫 항목이 주 체크아웃이다. */
 function listWorktrees() {
@@ -242,7 +242,7 @@ function defaultBranchRef() {
     try {
         return git(['rev-parse', '--abbrev-ref', 'origin/HEAD']);
     } catch {
-        warnings.push('origin/HEAD 를 읽지 못해 origin/main 을 기본 브랜치로 가정했다');
+        warnings.push('Could not read origin/HEAD, assuming origin/main is the default branch');
         return 'origin/main';
     }
 }
@@ -266,12 +266,77 @@ function closingIssues(pr) {
     return [...nums];
 }
 
+/**
+ * 새 워크트리에 따라가지 못할 로컬 설정이 있는지 본다.
+ *
+ * 워크트리는 새 체크아웃이라 gitignore 된 .env 류가 없다. 저장소 루트의
+ * .worktreeinclude 에 적어두면 Claude Code 가 복사해 주는데, 사람이 그 파일의
+ * 존재를 미리 알고 있어야 한다는 게 문제다. 모르면 새 세션이 빌드부터 실패하고,
+ * 원인도 바로 보이지 않는다.
+ *
+ * 그래서 여기서 먼저 찾아 알린다. 흔한 이름만 얕게 훑는다 — 저장소 전체를
+ * 뒤지는 비용을 들일 만한 문제가 아니고, 실제로 걸리는 것은 늘 이 몇 가지다.
+ */
+function missingWorktreeIncludes(root) {
+    const NAMES = /^(\.env(\..+)?|local\.properties)$/;
+    const MAX_DEPTH = 2;
+
+    const found = [];
+    const walk = (dir, rel, depth) => {
+        let entries;
+        try {
+            entries = fs.readdirSync(dir, {withFileTypes: true});
+        } catch {
+            return;
+        }
+        for (const e of entries) {
+            const childRel = rel ? `${rel}/${e.name}` : e.name;
+            if (e.isFile() && NAMES.test(e.name)) found.push(childRel);
+            else if (e.isDirectory() && depth < MAX_DEPTH && !e.name.startsWith('.') && !NON_AREA_DIRS.has(e.name)) {
+                walk(path.join(dir, e.name), childRel, depth + 1);
+            }
+        }
+    };
+    walk(root, '', 0);
+    if (found.length === 0) return;
+
+    // 추적되는 파일은 워크트리에도 그대로 있다. 빠지는 것은 gitignore 된 것뿐이다.
+    const ignored = found.filter((f) => {
+        try {
+            git(['check-ignore', '-q', f]);
+            return true;
+        } catch {
+            return false;
+        }
+    });
+    if (ignored.length === 0) return;
+
+    const listed = new Set();
+    try {
+        for (const line of fs.readFileSync(path.join(root, '.worktreeinclude'), 'utf8').split(/\r?\n/)) {
+            const t = line.trim();
+            if (t && !t.startsWith('#')) listed.add(t);
+        }
+    } catch {
+        // 파일이 없으면 아무것도 안 딸려간다
+    }
+
+    const uncovered = ignored.filter((f) => !listed.has(f));
+    if (uncovered.length === 0) return;
+
+    warnings.push(
+        `These gitignored files will be missing from a new worktree: ${uncovered.join(', ')}. ` +
+            `Add them to .worktreeinclude at the repository root so Claude Code copies them in.`
+    );
+}
+
 // --- 본체 -------------------------------------------------------------------
 
 function main() {
     const root = repoRoot();
     const config = loadConfig(root);
     const areaGlobs = loadAreaGlobs(root, config);
+    missingWorktreeIncludes(root);
     const areaNames = [...areaGlobs.keys()];
     const areaByNorm = areaLookup(areaNames);
     const defaultBranch = defaultBranchRef();
@@ -305,7 +370,7 @@ function main() {
     // 담당자가 나인지 남인지 갈라야 한다. 내 담당은 이어받을 것이고, 남의 담당은
     // 건드리면 안 되는 것이다.
     const me = currentUser();
-    if (!me) warnings.push('현재 GitHub 사용자를 알지 못해 내 담당과 남의 담당을 구분하지 못했다');
+    if (!me) warnings.push('Could not tell who you are, so your own assignments were not distinguished from anyone else');
 
     const projectByIssue = loadProjectMeta(owner, config);
 
@@ -313,7 +378,7 @@ function main() {
     const worktrees = listWorktrees().map((wt) => {
         const paths = changedPathsIn(wt.path, defaultBranch);
         let areas = areasForPaths(paths, areaGlobs);
-        let areaSource = '변경 파일';
+        let areaSource = 'changed files';
         if (areas.size === 0 && wt.branch) {
             const prefix = wt.branch.split('/')[0];
             // 부분 문자열로 맞추면 안 된다. 브랜치 접두사 "ai" 가 "maintenance" 같은
@@ -321,7 +386,7 @@ function main() {
             const guess = areaByNorm.get(normalizeArea(prefix));
             if (guess) {
                 areas = new Set([guess]);
-                areaSource = '브랜치 이름 추정';
+                areaSource = 'guessed from branch name';
             }
         }
         const pr = prs.find((p) => p.headRefName === wt.branch);
@@ -338,7 +403,7 @@ function main() {
     });
 
     // 남의 워크트리는 보이지 않는다. `git worktree list` 는 내 머신만 안다.
-    // 열린 PR 의 변경 파일이 팀의 진행 중 작업을 보는 유일한 창이다.
+    // 열린 PR 의 changed files이 팀의 진행 중 작업을 보는 유일한 창이다.
     const openPrs = prs.map((pr) => ({
         number: pr.number,
         branch: pr.headRefName,
@@ -360,8 +425,8 @@ function main() {
     for (const wt of worktrees) {
         if (wt.issues.length === 0) {
             warnings.push(
-                `워크트리 ${wt.branch || wt.path} 가 어느 이슈인지 특정하지 못했다 (열린 PR 없음). ` +
-                    `점유 영역은 ${wt.areas.join(', ') || '알 수 없음'} 으로만 반영했다.`
+                `Could not tell which issue worktree ${wt.branch || wt.path} belongs to (no open PR). ` +
+                    `Only its areas (${wt.areas.join(', ') || 'unknown'}) were counted as occupied.`
             );
         }
     }
@@ -379,9 +444,9 @@ function main() {
         const minePending = Boolean(me) && assignees.includes(me) && others.length === 0;
 
         const blockers = [];
-        if (others.length > 0) blockers.push(`다른 사람 담당 (${others.join(', ')})`);
+        if (others.length > 0) blockers.push(`assigned to someone else (${others.join(', ')})`);
         if (config.excludeStatuses.includes(meta.status)) blockers.push(`${config.statusField} = ${meta.status}`);
-        if (inFlight.has(issue.number)) blockers.push('진행 중인 워크트리·PR 이 참조 중');
+        if (inFlight.has(issue.number)) blockers.push('referenced by an in-flight worktree or PR');
 
         return {
             number: issue.number,
@@ -476,40 +541,40 @@ function cmp(a, b) {
 function report({me, worktrees, openPrs, occupiedAreas, ranked, blocked, warnings}, config) {
     const out = [];
 
-    out.push(`진행 중인 작업${me ? `  나: ${me}` : ''}`);
+    out.push(`In flight${me ? `  you: ${me}` : ''}`);
     if (worktrees.length === 0 && openPrs.length === 0) {
-        out.push('  (없음 — 겹칠 작업이 없다)');
+        out.push('  (nothing — no work to collide with)');
     }
     for (const wt of worktrees) {
-        const issues = wt.issues.length ? `#${wt.issues.join(', #')}` : '이슈 불명';
+        const issues = wt.issues.length ? `#${wt.issues.join(', #')}` : 'issue unknown';
         out.push(
-            `  [내 워크트리] ${wt.branch || wt.path}  ${issues}  파일 ${wt.changedCount} 개` +
-                `  영역: ${wt.areas.join(', ') || '알 수 없음'} (${wt.areaSource})` +
+            `  [worktree] ${wt.branch || wt.path}  ${issues}  ${wt.changedCount} files` +
+                `  areas: ${wt.areas.join(', ') || 'unknown'} (from ${wt.areaSource})` +
                 (wt.locked ? '  [locked]' : '')
         );
     }
     for (const pr of openPrs) {
-        const issues = pr.issues.length ? `#${pr.issues.join(', #')}` : '이슈 불명';
+        const issues = pr.issues.length ? `#${pr.issues.join(', #')}` : 'issue unknown';
         out.push(
-            `  [열린 PR] #${pr.number} ${pr.branch}  ${pr.author}${pr.isDraft ? ' (draft)' : ''}  ${issues}` +
-                `  영역: ${pr.areas.join(', ') || '알 수 없음'}`
+            `  [open PR] #${pr.number} ${pr.branch}  ${pr.author}${pr.isDraft ? ' (draft)' : ''}  ${issues}` +
+                `  areas: ${pr.areas.join(', ') || 'unknown'}`
         );
     }
-    out.push(`  점유 영역: ${occupiedAreas.join(', ') || '없음'}`);
+    out.push(`  occupied areas: ${occupiedAreas.join(', ') || 'none'}`);
     out.push('');
 
-    out.push(`가져갈 수 있는 후보 (${ranked.length} 개, 위에서부터)`);
+    out.push(`Available candidates (${ranked.length}, best first)`);
     for (const c of ranked.slice(0, 8)) {
         const bits = [
-            ...(c.minePending ? ['이미 내가 선점함 — 이어받기'] : []),
-            c.priority || '우선순위 미설정',
-            c.status || `${config.statusField} 미설정`,
+            ...(c.minePending ? ['already claimed by you — pick it back up'] : []),
+            c.priority || 'no priority',
+            c.status || `no ${config.statusField}`,
             ...c.areas,
         ];
         const note = c.overlaps.length
-            ? `  ⚠ 겹침: ${c.overlaps.join(', ')}`
+            ? `  ⚠ overlaps: ${c.overlaps.join(', ')}`
             : c.unknownArea
-              ? '  ⚠ 영역 라벨 없음 — 겹침 판정 불가'
+              ? '  ⚠ no area label — cannot check overlap'
               : '';
         out.push(`  #${String(c.number).padEnd(3)} ${c.title}`);
         out.push(`       ${bits.join(' · ')}${note}`);
@@ -517,7 +582,7 @@ function report({me, worktrees, openPrs, occupiedAreas, ranked, blocked, warning
     out.push('');
 
     if (blocked.length) {
-        out.push(`제외됨 (${blocked.length} 개)`);
+        out.push(`Excluded (${blocked.length})`);
         for (const c of blocked) {
             out.push(`  #${String(c.number).padEnd(3)} ${c.title}`);
             out.push(`       ${c.blockers.join(' / ')}`);
@@ -527,7 +592,7 @@ function report({me, worktrees, openPrs, occupiedAreas, ranked, blocked, warning
 
     const uniq = uniqueWarnings();
     if (uniq.length) {
-        out.push('확인이 필요한 점');
+        out.push('Worth checking');
         for (const w of uniq) out.push(`  - ${w}`);
         out.push('');
     }

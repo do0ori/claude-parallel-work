@@ -45,10 +45,10 @@ function parseArgs(argv) {
     const issue = Number(rawIssue);
 
     if (!name || !SAFE_NAME.test(name)) {
-        fail(`워크트리 이름 "${name ?? ''}" 을 쓸 수 없다. 문자·숫자·점·밑줄·하이픈·슬래시만 된다.`);
+        fail(`Cannot use the worktree name "${name ?? ''}". Letters, digits, dot, underscore, hyphen and slash only.`);
     }
     if (!Number.isInteger(issue) || issue <= 0) {
-        fail(`이슈 번호가 잘못됐다: "${rawIssue ?? ''}"`);
+        fail(`Bad issue number: "${rawIssue ?? ''}"`);
     }
 
     let how = null;
@@ -58,7 +58,7 @@ function parseArgs(argv) {
 }
 
 function fail(message) {
-    process.stderr.write(`${message}\n사용법: launch.mjs <워크트리이름> <이슈번호> [--print|--session]\n`);
+    process.stderr.write(`${message}\nusage: launch.mjs <worktree-name> <issue-number> [--print|--session]\n`);
     process.exit(1);
 }
 
@@ -130,7 +130,7 @@ function main() {
     const command = printableCommand(name, issue);
 
     if (mode !== 'session') {
-        process.stdout.write(`새 터미널에 붙여넣으세요:\n  ${command}\n`);
+        process.stdout.write(`Paste this into a new terminal:\n  ${command}\n`);
         return;
     }
 
@@ -138,9 +138,9 @@ function main() {
     const terminal = terminalFor(script, root, config);
 
     if (process.argv.includes('--dry-run')) {
-        process.stdout.write(`플랫폼: ${process.platform}\n`);
-        process.stdout.write(`실행할 창: ${terminal ? [terminal.file, ...terminal.args].join(' ') : '(찾지 못함)'}\n`);
-        process.stdout.write(`스크립트: ${script}\n---\n${fs.readFileSync(script, 'utf8')}---\n`);
+        process.stdout.write(`platform: ${process.platform}\n`);
+        process.stdout.write(`terminal: ${terminal ? [terminal.file, ...terminal.args].join(' ') : '(none found)'}\n`);
+        process.stdout.write(`script: ${script}\n---\n${fs.readFileSync(script, 'utf8')}---\n`);
         fs.unlinkSync(script);
         return;
     }
@@ -148,8 +148,8 @@ function main() {
     if (!terminal) {
         // 창을 못 여는 것은 실패지만, 사람이 이어서 할 수 있으면 막다른 길은 아니다
         process.stdout.write(
-            `이 환경에서 새 창을 여는 방법을 찾지 못했습니다. 아래를 붙여넣으세요:\n  ${command}\n` +
-                `\n설정의 terminalCommand 로 직접 지정할 수 있습니다. {script} 가 실행할 파일로 바뀝니다.\n`
+            `Could not find a way to open a window here. Paste this instead:\n  ${command}\n` +
+                `\nYou can set terminalCommand in the config. {script} is replaced with the file to run.\n`
         );
         process.exitCode = 1;
         return;
@@ -157,13 +157,13 @@ function main() {
 
     const child = spawn(terminal.file, terminal.args, {detached: true, stdio: 'ignore'});
     child.on('error', (err) => {
-        process.stderr.write(`${terminal.file} 실행 실패 — ${err.message}\n아래를 붙여넣으세요:\n  ${command}\n`);
+        process.stderr.write(`Could not run ${terminal.file} — ${err.message}\nPaste this instead:\n  ${command}\n`);
         process.exitCode = 1;
     });
     child.unref();
 
-    process.stdout.write(`새 세션을 열었습니다 — 워크트리 ${name}, 이슈 #${issue}\n`);
-    process.stdout.write(`  ${terminal.file} 로 창을 띄웠습니다. 그 창에서 세션이 시작됩니다.\n`);
+    process.stdout.write(`Opened a new session — worktree ${name}, issue #${issue}\n`);
+    process.stdout.write(`  Opened via ${terminal.file}. The session starts in that window.\n`);
 }
 
 main();

@@ -88,7 +88,7 @@ lowercasing**, so `🖥️frontend`, `Front-End`, and the directory `frontend` a
 up. Naming issue labels after your directories is enough to make this work with no
 labeler config at all.
 
-An issue with no area-like label is shown as `no area label — can't check overlap`.
+An issue with no area-like label is shown as `no area label — cannot check overlap`.
 It still gets ranked; you just have to judge the overlap yourself.
 
 ## Ranking
@@ -223,6 +223,11 @@ A worktree is a fresh checkout, so gitignored files like `.env` aren't there. Pu
 frontend/.env
 proxy/.env
 ```
+
+**You do not have to know this in advance.** While picking work, the tool looks for
+gitignored `.env`-style files that are not listed and tells you which ones a new
+worktree would be missing — before the new session fails to build and leaves you
+guessing why.
 
 ## Requirements
 

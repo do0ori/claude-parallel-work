@@ -37,7 +37,7 @@ function parseArgs(argv) {
     const positional = argv.filter((a) => !a.startsWith('--'));
     const number = Number(positional[0]);
     if (!Number.isInteger(number) || number <= 0) {
-        process.stderr.write('사용법: claim.mjs <이슈번호> [--no-status] [--status <값>]\n');
+        process.stderr.write('usage: claim.mjs <issue-number> [--no-status] [--status <value>]\n');
         process.exit(1);
     }
     const noStatus = argv.includes('--no-status');
@@ -54,20 +54,20 @@ function moveStatus(owner, projectNumber, issueNumber, config, wanted) {
     const project = ghJson(['project', 'view', String(projectNumber), '--owner', owner, '--format', 'json']);
     const projectId = project?.id;
     if (!projectId) {
-        warnings.push('Project ID 를 읽지 못해 Status 를 옮기지 못했다');
+        warnings.push('Could not read the Project id, so the status was left alone');
         return null;
     }
 
     const fields = ghJson(['project', 'field-list', String(projectNumber), '--owner', owner, '--format', 'json']);
     const field = (fields?.fields || []).find((f) => f.name?.toLowerCase() === config.statusField.toLowerCase());
     if (!field) {
-        warnings.push(`Project 에 "${config.statusField}" 필드가 없어 Status 를 옮기지 못했다`);
+        warnings.push(`The Project has no "${config.statusField}" field, so the status was left alone`);
         return null;
     }
     const option = (field.options || []).find((o) => o.name?.toLowerCase() === wanted.toLowerCase());
     if (!option) {
         const names = (field.options || []).map((o) => o.name).join(', ');
-        warnings.push(`"${config.statusField}" 에 "${wanted}" 옵션이 없다 (있는 값: ${names})`);
+        warnings.push(`"${config.statusField}" has no "${wanted}" option (available: ${names})`);
         return null;
     }
 
@@ -84,7 +84,7 @@ function moveStatus(owner, projectNumber, issueNumber, config, wanted) {
     ]);
     const item = (items?.items || []).find((it) => it?.content?.number === issueNumber);
     if (!item) {
-        warnings.push(`이슈 #${issueNumber} 가 Project 에 올라 있지 않아 Status 를 옮기지 못했다`);
+        warnings.push(`Issue #${issueNumber} is not on the Project, so the status was left alone`);
         return null;
     }
 
@@ -110,13 +110,13 @@ function main() {
     const config = loadConfig(repoRoot());
     const me = currentUser();
     if (!me) {
-        process.stderr.write('gh 로 인증된 사용자를 알 수 없다. gh auth login 을 먼저 하라.\n');
+        process.stderr.write('Cannot tell who you are. Run gh auth login first.\n');
         process.exit(1);
     }
 
     const assigned = ghText(['issue', 'edit', String(number), '--add-assignee', '@me']);
     if (assigned === null) {
-        process.stderr.write(`이슈 #${number} 에 담당자를 걸지 못했다.\n`);
+        process.stderr.write(`Could not assign yourself to issue #${number}.\n`);
         printWarnings();
         process.exit(1);
     }
@@ -127,15 +127,15 @@ function main() {
     const others = logins.filter((l) => l !== me);
 
     if (!logins.includes(me)) {
-        process.stdout.write(`선점 실패: #${number} 담당자가 ${logins.join(', ') || '비어 있음'} 이다. 다음 후보로 넘어가라.\n`);
+        process.stdout.write(`Claim failed: #${number} is assigned to ${logins.join(', ') || 'nobody'}. Move on to the next candidate.\n`);
         printWarnings();
         process.exit(1);
     }
     if (others.length > 0) {
         // 같은 순간에 다른 사람도 집었다. 늦게 온 쪽이 물러나는 편이 안전하다.
         process.stdout.write(
-            `선점 경합: #${number} 에 ${others.join(', ')} 도 함께 올라와 있다. ` +
-                `내 담당을 떼고 다음 후보로 넘어가라 — gh issue edit ${number} --remove-assignee @me\n`
+            `Claim contended: ${others.join(', ')} is also assigned to #${number}. ` +
+                `Drop your assignment and move on — gh issue edit ${number} --remove-assignee @me\n`
         );
         printWarnings();
         process.exit(1);
@@ -149,11 +149,11 @@ function main() {
         if (owner && projectNumber != null) moved = moveStatus(owner, projectNumber, number, config, wanted);
     }
 
-    process.stdout.write(`선점 완료: #${number} ${after?.title || ''}\n`);
+    process.stdout.write(`Claimed #${number} ${after?.title || ''}\n`);
     process.stdout.write(`  assignee=${me}${moved ? `, ${config.statusField}=${moved}` : ''}\n`);
     // 로컬 워크트리는 내 머신에서만 보이고, 그마저 어느 이슈인지는 PR 이 있어야 안다.
     // draft PR 을 먼저 열면 그 순간부터 점유가 모두에게 — 나중의 나에게도 — 보인다.
-    process.stdout.write('  작업을 시작하면서 draft PR 을 먼저 열어라. 그래야 점유가 보인다.\n');
+    process.stdout.write('  Open a draft PR as you start, so the claim is visible to everyone.\n');
     printWarnings();
 }
 

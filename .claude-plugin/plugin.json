@@ -1,7 +1,7 @@
 {
     "name": "parallel-work",
     "displayName": "Parallel Work",
-    "version": "0.9.0",
+    "version": "0.10.0",
     "description": "겹치지 않는 다음 GitHub 이슈를 골라 병렬 Claude 세션을 시작한다. 워크트리로 도는 작업을 조사해 영역이 겹치는 이슈를 피한다.",
     "author": {
         "name": "do0ori",

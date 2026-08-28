@@ -172,6 +172,19 @@ and for you three sessions from now.
 It matters when working alone too. With no PR, a worktree shows up as `issue
 unknown` and the issue it's working on stays in the candidate list.
 
+## Close the loop when it merges
+
+Claiming moves the Project status to `In Progress`. Nothing moves it back, so the
+board rots quietly unless the finishing session does it:
+
+```bash
+node <plugin>/skills/picking-parallel-work/scripts/set-status.mjs <issue> Done
+```
+
+This is not just tidiness. `In Progress` is one of the hard exclusions, so an issue
+left in that state after its PR merged never comes back as a candidate — and if only
+part of it was done, nobody can pick up the rest.
+
 ## Configuration
 
 **Try it with no configuration first.** `.claude/parallel-work.json` is optional. If

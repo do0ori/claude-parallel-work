@@ -207,6 +207,72 @@ export function closingIssues(pr) {
     return [...nums];
 }
 
+/**
+ * 이슈의 Project Status 를 옮긴다. 필드·옵션·아이템 ID 는 여기서 알아낸다.
+ *
+ * 실패해도 예외를 던지지 않고 null 을 돌려준다. 선점 중이라면 담당자가 걸린
+ * 것만으로도 다른 세션은 이 이슈를 후보에서 빼므로, Status 하나 때문에 흐름을
+ * 멈출 이유가 없다.
+ */
+export function setProjectStatus(issueNumber, config, wanted) {
+    const owner = repoOwner();
+    const projectNumber = resolveProjectNumber(owner, config);
+    if (!owner || projectNumber == null) return null;
+
+    const project = ghJson(['project', 'view', String(projectNumber), '--owner', owner, '--format', 'json']);
+    const projectId = project?.id;
+    if (!projectId) {
+        warnings.push('Could not read the Project id, so the status was left alone');
+        return null;
+    }
+
+    const fields = ghJson(['project', 'field-list', String(projectNumber), '--owner', owner, '--format', 'json']);
+    const field = (fields?.fields || []).find((f) => f.name?.toLowerCase() === config.statusField.toLowerCase());
+    if (!field) {
+        warnings.push(`The Project has no "${config.statusField}" field, so the status was left alone`);
+        return null;
+    }
+    const option = (field.options || []).find((o) => o.name?.toLowerCase() === wanted.toLowerCase());
+    if (!option) {
+        const names = (field.options || []).map((o) => o.name).join(', ');
+        warnings.push(`"${config.statusField}" has no "${wanted}" option (available: ${names})`);
+        return null;
+    }
+
+    const items = ghJson([
+        'project',
+        'item-list',
+        String(projectNumber),
+        '--owner',
+        owner,
+        '--limit',
+        '500',
+        '--format',
+        'json',
+    ]);
+    const item = (items?.items || []).find((it) => it?.content?.number === issueNumber);
+    if (!item) {
+        warnings.push(`Issue #${issueNumber} is not on the Project, so the status was left alone`);
+        return null;
+    }
+
+    const edited = ghJson([
+        'project',
+        'item-edit',
+        '--id',
+        item.id,
+        '--project-id',
+        projectId,
+        '--field-id',
+        field.id,
+        '--single-select-option-id',
+        option.id,
+        '--format',
+        'json',
+    ]);
+    return edited ? wanted : null;
+}
+
 /** 저장소 소유자 로그인. */
 export function repoOwner() {
     return ghJson(['repo', 'view', '--json', 'owner,name'])?.owner?.login || null;

@@ -20,18 +20,7 @@
  *   1  선점 실패 (경합에 졌거나 인자가 잘못됨) — 다음 후보로 넘어가라
  */
 
-import {
-    claimStatusFor,
-    currentUser,
-    ghJson,
-    ghText,
-    loadConfig,
-    printWarnings,
-    repoOwner,
-    repoRoot,
-    resolveProjectNumber,
-    warnings,
-} from './lib.mjs';
+import {claimStatusFor, currentUser, ghJson, ghText, loadConfig, printWarnings, repoRoot, setProjectStatus} from './lib.mjs';
 
 function parseArgs(argv) {
     const positional = argv.filter((a) => !a.startsWith('--'));
@@ -44,65 +33,6 @@ function parseArgs(argv) {
     const i = argv.indexOf('--status');
     const status = i !== -1 ? argv[i + 1] : null;
     return {number, noStatus, status};
-}
-
-/**
- * Project Status 를 옮긴다. 실패해도 선점 자체를 되돌리지는 않는다 —
- * 담당자가 걸린 것만으로도 다른 세션은 이 이슈를 후보에서 뺀다.
- */
-function moveStatus(owner, projectNumber, issueNumber, config, wanted) {
-    const project = ghJson(['project', 'view', String(projectNumber), '--owner', owner, '--format', 'json']);
-    const projectId = project?.id;
-    if (!projectId) {
-        warnings.push('Could not read the Project id, so the status was left alone');
-        return null;
-    }
-
-    const fields = ghJson(['project', 'field-list', String(projectNumber), '--owner', owner, '--format', 'json']);
-    const field = (fields?.fields || []).find((f) => f.name?.toLowerCase() === config.statusField.toLowerCase());
-    if (!field) {
-        warnings.push(`The Project has no "${config.statusField}" field, so the status was left alone`);
-        return null;
-    }
-    const option = (field.options || []).find((o) => o.name?.toLowerCase() === wanted.toLowerCase());
-    if (!option) {
-        const names = (field.options || []).map((o) => o.name).join(', ');
-        warnings.push(`"${config.statusField}" has no "${wanted}" option (available: ${names})`);
-        return null;
-    }
-
-    const items = ghJson([
-        'project',
-        'item-list',
-        String(projectNumber),
-        '--owner',
-        owner,
-        '--limit',
-        '500',
-        '--format',
-        'json',
-    ]);
-    const item = (items?.items || []).find((it) => it?.content?.number === issueNumber);
-    if (!item) {
-        warnings.push(`Issue #${issueNumber} is not on the Project, so the status was left alone`);
-        return null;
-    }
-
-    const edited = ghJson([
-        'project',
-        'item-edit',
-        '--id',
-        item.id,
-        '--project-id',
-        projectId,
-        '--field-id',
-        field.id,
-        '--single-select-option-id',
-        option.id,
-        '--format',
-        'json',
-    ]);
-    return edited ? wanted : null;
 }
 
 function main() {
@@ -141,13 +71,8 @@ function main() {
         process.exit(1);
     }
 
-    let moved = null;
     const wanted = status || (noStatus ? null : claimStatusFor(config));
-    if (wanted) {
-        const owner = repoOwner();
-        const projectNumber = resolveProjectNumber(owner, config);
-        if (owner && projectNumber != null) moved = moveStatus(owner, projectNumber, number, config, wanted);
-    }
+    const moved = wanted ? setProjectStatus(number, config, wanted) : null;
 
     process.stdout.write(`Claimed #${number} ${after?.title || ''}\n`);
     process.stdout.write(`  assignee=${me}${moved ? `, ${config.statusField}=${moved}` : ''}\n`);

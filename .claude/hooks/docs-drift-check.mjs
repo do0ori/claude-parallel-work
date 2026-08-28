@@ -51,6 +51,14 @@ const RULES = [
         ],
     },
     {
+        pattern: /^skills\/picking-parallel-work\/scripts\/set-status\.mjs$/,
+        docs: [
+            ['skills/picking-parallel-work/SKILL.md', 'step 6, 마무리'],
+            ['README.md', '"Close the loop when it merges"'],
+            ['README.ko.md', '"머지되면 고리를 닫는다"'],
+        ],
+    },
+    {
         pattern: /^skills\/picking-parallel-work\/scripts\/launch\.mjs$/,
         docs: [
             ['skills/picking-parallel-work/SKILL.md', 'step 4, 새 세션을 연다'],

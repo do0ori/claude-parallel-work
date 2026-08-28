@@ -29,9 +29,11 @@ import path from 'node:path';
 
 import {
     currentUser,
+    findUncoveredLocalConfig,
     ghJson,
     git,
     loadConfig,
+    NON_AREA_DIRS,
     repoOwner,
     repoRoot,
     resolveProjectNumber,
@@ -39,8 +41,7 @@ import {
     warnings,
 } from './lib.mjs';
 
-/** 영역 자동 추론에서 빼는 최상위 디렉터리. 어느 저장소에나 있고 영역이 아니다. */
-const NON_AREA_DIRS = new Set(['node_modules', 'vendor', 'dist', 'build', 'target', 'out']);
+
 
 const wantJson = process.argv.includes('--json');
 
@@ -266,77 +267,14 @@ function closingIssues(pr) {
     return [...nums];
 }
 
-/**
- * 새 워크트리에 따라가지 못할 로컬 설정이 있는지 본다.
- *
- * 워크트리는 새 체크아웃이라 gitignore 된 .env 류가 없다. 저장소 루트의
- * .worktreeinclude 에 적어두면 Claude Code 가 복사해 주는데, 사람이 그 파일의
- * 존재를 미리 알고 있어야 한다는 게 문제다. 모르면 새 세션이 빌드부터 실패하고,
- * 원인도 바로 보이지 않는다.
- *
- * 그래서 여기서 먼저 찾아 알린다. 흔한 이름만 얕게 훑는다 — 저장소 전체를
- * 뒤지는 비용을 들일 만한 문제가 아니고, 실제로 걸리는 것은 늘 이 몇 가지다.
- */
-function missingWorktreeIncludes(root) {
-    const NAMES = /^(\.env(\..+)?|local\.properties)$/;
-    const MAX_DEPTH = 2;
-
-    const found = [];
-    const walk = (dir, rel, depth) => {
-        let entries;
-        try {
-            entries = fs.readdirSync(dir, {withFileTypes: true});
-        } catch {
-            return;
-        }
-        for (const e of entries) {
-            const childRel = rel ? `${rel}/${e.name}` : e.name;
-            if (e.isFile() && NAMES.test(e.name)) found.push(childRel);
-            else if (e.isDirectory() && depth < MAX_DEPTH && !e.name.startsWith('.') && !NON_AREA_DIRS.has(e.name)) {
-                walk(path.join(dir, e.name), childRel, depth + 1);
-            }
-        }
-    };
-    walk(root, '', 0);
-    if (found.length === 0) return;
-
-    // 추적되는 파일은 워크트리에도 그대로 있다. 빠지는 것은 gitignore 된 것뿐이다.
-    const ignored = found.filter((f) => {
-        try {
-            git(['check-ignore', '-q', f]);
-            return true;
-        } catch {
-            return false;
-        }
-    });
-    if (ignored.length === 0) return;
-
-    const listed = new Set();
-    try {
-        for (const line of fs.readFileSync(path.join(root, '.worktreeinclude'), 'utf8').split(/\r?\n/)) {
-            const t = line.trim();
-            if (t && !t.startsWith('#')) listed.add(t);
-        }
-    } catch {
-        // 파일이 없으면 아무것도 안 딸려간다
-    }
-
-    const uncovered = ignored.filter((f) => !listed.has(f));
-    if (uncovered.length === 0) return;
-
-    warnings.push(
-        `These gitignored files will be missing from a new worktree: ${uncovered.join(', ')}. ` +
-            `Add them to .worktreeinclude at the repository root so Claude Code copies them in.`
-    );
-}
-
 // --- 본체 -------------------------------------------------------------------
 
 function main() {
     const root = repoRoot();
     const config = loadConfig(root);
     const areaGlobs = loadAreaGlobs(root, config);
-    missingWorktreeIncludes(root);
+    for (const f of findUncoveredLocalConfig(root))
+        warnings.push(`${f} is gitignored and not in .worktreeinclude — a new worktree will not have it`);
     const areaNames = [...areaGlobs.keys()];
     const areaByNorm = areaLookup(areaNames);
     const defaultBranch = defaultBranchRef();

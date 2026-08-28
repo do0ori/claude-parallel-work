@@ -193,9 +193,14 @@ frontend/.env
 proxy/.env
 ```
 
-**이걸 미리 알고 있을 필요는 없다.** 작업을 고르는 단계에서, 목록에 없는 gitignore 된
-`.env` 류를 찾아 "새 워크트리에 이게 빠진다" 고 알려준다. 새 세션이 빌드부터 실패하고
-원인을 찾아 헤매게 두지 않는다.
+**직접 쓸 필요는 없다.** 새 세션을 열기 직전에, 목록에 없는 gitignore 된 `.env` 류를
+찾아 채워 넣고 무엇을 더했는지 알린다.
+
+```
+Added to .worktreeinclude so the new worktree gets them: frontend/.env, proxy/.env
+```
+
+커밋되는 파일이라 말없이 고치지 않고 항상 보고한다.
 
 ## 요구사항
 

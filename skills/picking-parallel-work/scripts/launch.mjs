@@ -28,7 +28,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import {loadConfig, repoRoot} from './lib.mjs';
+import {findUncoveredLocalConfig, loadConfig, repoRoot, WORKTREE_INCLUDE} from './lib.mjs';
 
 /**
  * 워크트리 이름에 허용하는 글자.
@@ -122,12 +122,43 @@ function terminalFor(script, root, config) {
     return null;
 }
 
+/**
+ * 새 워크트리에 따라가야 할 로컬 설정을 .worktreeinclude 에 채운다.
+ *
+ * 사람에게 "이걸 추가하세요" 라고 시키지 않는다. 워크트리가 만들어지기 직전인
+ * 지금이 채워 넣을 마지막 순간이고, 빠지면 새 세션이 빌드부터 실패한다.
+ *
+ * 무엇을 더했는지는 반드시 보고한다. 커밋되는 파일을 말없이 고치지 않는다.
+ */
+function ensureLocalConfigCarried(root) {
+    const missing = findUncoveredLocalConfig(root);
+    if (missing.length === 0) return [];
+
+    const file = path.join(root, WORKTREE_INCLUDE);
+    const existing = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+    const header = existing
+        ? ''
+        : '# Gitignored local config that new worktrees need.\n' +
+          '# Claude Code copies these in when it creates a worktree.\n\n';
+    const gap = existing && !existing.endsWith('\n') ? '\n' : '';
+
+    fs.writeFileSync(file, existing + gap + header + missing.join('\n') + '\n');
+    return missing;
+}
+
 function main() {
     const {name, issue, how} = parseArgs(process.argv.slice(2));
     const root = repoRoot();
     const config = loadConfig(root);
     const mode = how || config.launch || 'print';
     const command = printableCommand(name, issue);
+    const carried = ensureLocalConfigCarried(root);
+
+    if (carried.length > 0) {
+        process.stdout.write(
+            `Added to ${WORKTREE_INCLUDE} so the new worktree gets them: ${carried.join(', ')}\n`
+        );
+    }
 
     if (mode !== 'session') {
         process.stdout.write(`Paste this into a new terminal:\n  ${command}\n`);

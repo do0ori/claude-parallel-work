@@ -52,6 +52,67 @@ export function claimStatusFor(config) {
 
 export const CONFIG_PATH = '.claude/parallel-work.json';
 
+export const WORKTREE_INCLUDE = '.worktreeinclude';
+
+/** 영역 추론과 로컬 설정 탐색에서 빼는 디렉터리. 어느 저장소에나 있다. */
+export const NON_AREA_DIRS = new Set(['node_modules', 'vendor', 'dist', 'build', 'target', 'out']);
+
+/**
+ * 새 워크트리에 따라가지 못할 로컬 설정 파일.
+ *
+ * 워크트리는 새 체크아웃이라 gitignore 된 .env 류가 없다. 저장소 루트의
+ * .worktreeinclude 에 적혀 있어야 Claude Code 가 복사해 준다. 사람이 그 파일의
+ * 존재를 미리 알고 있어야 한다는 게 문제라, 여기서 찾아낸다.
+ *
+ * 흔한 이름만 얕게 훑는다. 저장소 전체를 뒤질 만한 문제가 아니고, 실제로 걸리는
+ * 것은 늘 이 몇 가지다.
+ */
+export function findUncoveredLocalConfig(root) {
+    const NAMES = /^(\.env(\..+)?|local\.properties)$/;
+    const MAX_DEPTH = 2;
+
+    const found = [];
+    const walk = (dir, rel, depth) => {
+        let entries;
+        try {
+            entries = fs.readdirSync(dir, {withFileTypes: true});
+        } catch {
+            return;
+        }
+        for (const e of entries) {
+            const childRel = rel ? `${rel}/${e.name}` : e.name;
+            if (e.isFile() && NAMES.test(e.name)) found.push(childRel);
+            else if (e.isDirectory() && depth < MAX_DEPTH && !e.name.startsWith('.') && !NON_AREA_DIRS.has(e.name)) {
+                walk(path.join(dir, e.name), childRel, depth + 1);
+            }
+        }
+    };
+    walk(root, '', 0);
+    if (found.length === 0) return [];
+
+    // 추적되는 파일은 워크트리에도 그대로 있다. 빠지는 것은 gitignore 된 것뿐이다.
+    const ignored = found.filter((f) => {
+        try {
+            git(['check-ignore', '-q', f]);
+            return true;
+        } catch {
+            return false;
+        }
+    });
+    if (ignored.length === 0) return [];
+
+    const listed = new Set();
+    try {
+        for (const line of fs.readFileSync(path.join(root, WORKTREE_INCLUDE), 'utf8').split(/\r?\n/)) {
+            const t = line.trim();
+            if (t && !t.startsWith('#')) listed.add(t);
+        }
+    } catch {
+        // 파일이 없으면 아무것도 안 딸려간다
+    }
+    return ignored.filter((f) => !listed.has(f));
+}
+
 /** 실패를 모아 마지막에 한자리에서 보여준다. */
 export const warnings = [];
 

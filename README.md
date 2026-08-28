@@ -224,10 +224,16 @@ frontend/.env
 proxy/.env
 ```
 
-**You do not have to know this in advance.** While picking work, the tool looks for
-gitignored `.env`-style files that are not listed and tells you which ones a new
-worktree would be missing — before the new session fails to build and leaves you
-guessing why.
+**You do not have to write it yourself.** Just before opening a new session, the tool
+looks for gitignored `.env`-style files that are not listed, adds them, and tells you
+what it added:
+
+```
+Added to .worktreeinclude so the new worktree gets them: frontend/.env, proxy/.env
+```
+
+It is a file that gets committed, so the change is always reported rather than made
+quietly.
 
 ## Requirements
 

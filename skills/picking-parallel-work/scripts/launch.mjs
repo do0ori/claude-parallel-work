@@ -62,6 +62,27 @@ function fail(message) {
     process.exit(1);
 }
 
+/**
+ * 이 프로세스가 물려받은 Claude 세션 표식들.
+ *
+ * 이 스크립트는 대개 Claude 세션 안에서 실행된다. 그러면 자식 프로세스가
+ * CLAUDE_CODE_CHILD_SESSION 같은 표식을 그대로 물려받고, 새로 뜬 세션이 자기를
+ * "누군가의 자식 세션" 으로 여긴다. 그 상태에서는 플러그인이 로드되지 않아
+ * /work-issue 가 "Unknown command" 로 끝난다. 실제로 그렇게 한 번 죽었다.
+ *
+ * ANTHROPIC_* 는 건드리지 않는다. 인증에 쓰이는 값이라 물려받아야 한다.
+ */
+function inheritedClaudeVars() {
+    return Object.keys(process.env).filter((k) => /^CLAUDE/i.test(k));
+}
+
+/** Claude 표식을 뺀 환경. 새 세션은 부모를 몰라야 한다. */
+function cleanEnv() {
+    const env = {...process.env};
+    for (const k of inheritedClaudeVars()) delete env[k];
+    return env;
+}
+
 function has(command) {
     try {
         execFileSync(process.platform === 'win32' ? 'where' : 'command', [command], {
@@ -89,11 +110,23 @@ function writeLaunchScript(root, name, issue) {
     const isWindows = process.platform === 'win32';
     const file = path.join(os.tmpdir(), `parallel-work-${slug}-${process.pid}.${isWindows ? 'cmd' : 'sh'}`);
 
+    // 창을 여는 경로가 환경을 어디서 물려줄지 알 수 없으므로, 실행 직전에 한 번 더 지운다.
+    const vars = inheritedClaudeVars();
     const body = isWindows
-        ? ['@echo off', `cd /d "${root}" || exit /b 1`, `claude --worktree "${name}" "/work-issue ${issue}"`, ''].join(
-              '\r\n'
-          )
-        : ['#!/bin/sh', `cd '${root.replace(/'/g, `'\\''`)}' || exit 1`, `exec claude --worktree '${name}' '/work-issue ${issue}'`, ''].join('\n');
+        ? [
+              '@echo off',
+              ...vars.map((k) => `set "${k}="`),
+              `cd /d "${root}" || exit /b 1`,
+              `claude --worktree "${name}" "/work-issue ${issue}"`,
+              '',
+          ].join('\r\n')
+        : [
+              '#!/bin/sh',
+              ...vars.map((k) => `unset ${k}`),
+              `cd '${root.replace(/'/g, `'\\''`)}' || exit 1`,
+              `exec claude --worktree '${name}' '/work-issue ${issue}'`,
+              '',
+          ].join('\n');
 
     fs.writeFileSync(file, body);
     if (!isWindows) fs.chmodSync(file, 0o755);
@@ -186,7 +219,7 @@ function main() {
         return;
     }
 
-    const child = spawn(terminal.file, terminal.args, {detached: true, stdio: 'ignore'});
+    const child = spawn(terminal.file, terminal.args, {detached: true, stdio: 'ignore', env: cleanEnv()});
     child.on('error', (err) => {
         process.stderr.write(`Could not run ${terminal.file} — ${err.message}\nPaste this instead:\n  ${command}\n`);
         process.exitCode = 1;
@@ -194,7 +227,10 @@ function main() {
     child.unref();
 
     process.stdout.write(`Opened a new session — worktree ${name}, issue #${issue}\n`);
-    process.stdout.write(`  Opened via ${terminal.file}. The session starts in that window.\n`);
+    process.stdout.write(
+        `  Opened via ${terminal.file} — this is a separate window, not a tab in the terminal you are reading.\n` +
+            `  Look for a window titled with the worktree name; on Windows check the taskbar.\n`
+    );
 }
 
 main();

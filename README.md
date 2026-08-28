@@ -156,7 +156,15 @@ the repository root:
 "terminalCommand": ["wezterm", "start", "--cwd", "{dir}", "--", "{script}"]
 ```
 
-If the window can't be opened, you get the paste-able command instead. It's never a
+The window it opens is a **separate window**, not a tab in the terminal you launched
+from, so look on the taskbar if you cannot find it.
+
+The new session is started with the parent session's Claude environment variables
+stripped. Without that it inherits markers like `CLAUDE_CODE_CHILD_SESSION`, decides
+it is somebody's child session, and loads no plugins — so `/work-issue` comes back as
+`Unknown command` and the session just sits there.
+
+If the window cannot be opened, you get the paste-able command instead. It is never a
 dead end.
 
 ## Open the draft PR first

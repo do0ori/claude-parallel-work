@@ -16,6 +16,13 @@ import path from 'node:path';
  * 때만 그걸 쓴다. 여러 개면 어느 것인지 사람이 정해야 한다.
  */
 export const DEFAULTS = {
+    /**
+     * "team" 또는 "solo".
+     *
+     * team 이 기본이다. 잘못 골랐을 때 team 쪽이 안전하다 — 확인이 하나 더 붙을
+     * 뿐이지만, 반대로 팀에서 solo 로 돌면 남의 작업을 덮어쓸 수 있다.
+     */
+    mode: 'team',
     projectNumber: null,
     priorityField: 'Priority',
     priorityOrder: ['P0', 'P1', 'P2'],
@@ -24,9 +31,33 @@ export const DEFAULTS = {
     excludeStatuses: ['In Progress', 'Done'],
     labelOrder: ['bug', 'enhancement'],
     areaSource: '.github/labeler.yaml',
-    /** 선점할 때 Project Status 를 이 값으로 옮긴다. null 이면 옮기지 않는다. */
-    claimStatus: 'In Progress',
+    /**
+     * 선점할 때 Project Status 를 이 값으로 옮긴다. null 이면 옮기지 않는다.
+     * 적지 않으면 모드가 정한다 — claimStatusFor 를 보라.
+     */
+    // claimStatus: 모드에 맡기기 위해 일부러 비워 둔다
 };
+
+/** 팀 모드인가. 설정이 이상하면 안전한 쪽(팀)으로 본다. */
+export function isTeam(config) {
+    if (config.mode !== 'team' && config.mode !== 'solo') {
+        warnings.push(`mode 가 "${config.mode}" 다. "team" 또는 "solo" 여야 해서 team 으로 보고 진행한다.`);
+        return true;
+    }
+    return config.mode === 'team';
+}
+
+/**
+ * 선점할 때 옮길 Status.
+ *
+ * 설정에 claimStatus 가 있으면 그것을 쓴다. 없으면 모드가 정한다 — 팀에서는
+ * 남에게 "내가 잡았다"를 보이는 신호가 필요하고, 혼자일 때는 필드 ID 를 뒤지는
+ * 품에 비해 얻는 게 없다.
+ */
+export function claimStatusFor(config) {
+    if (config.claimStatus !== undefined) return config.claimStatus;
+    return isTeam(config) ? 'In Progress' : null;
+}
 
 export const CONFIG_PATH = '.claude/parallel-work.json';
 
@@ -124,8 +155,17 @@ export function resolveProjectNumber(owner, config) {
     return null;
 }
 
+/**
+ * 같은 경고가 여러 번 쌓일 수 있다 — 같은 검사를 두 곳에서 부르면 그렇다.
+ * 읽는 사람에게는 한 번만 보이면 된다.
+ */
+export function uniqueWarnings() {
+    return [...new Set(warnings)];
+}
+
 export function printWarnings() {
-    if (warnings.length === 0) return;
+    const list = uniqueWarnings();
+    if (list.length === 0) return;
     process.stdout.write('\n확인이 필요한 점\n');
-    for (const w of warnings) process.stdout.write(`  - ${w}\n`);
+    for (const w of list) process.stdout.write(`  - ${w}\n`);
 }

@@ -31,10 +31,12 @@ import {
     currentUser,
     ghJson,
     git,
+    isTeam,
     loadConfig,
     repoOwner,
     repoRoot,
     resolveProjectNumber,
+    uniqueWarnings,
     warnings,
 } from './lib.mjs';
 
@@ -376,7 +378,16 @@ function main() {
     const ranked = candidates.filter((c) => c.blockers.length === 0).sort((a, b) => cmp(rankKey(a), rankKey(b)));
     const blocked = candidates.filter((c) => c.blockers.length > 0).sort((a, b) => a.number - b.number);
 
-    const result = {me, occupiedAreas: [...occupiedAreas], worktrees, openPrs, ranked, blocked, warnings};
+    const result = {
+        mode: isTeam(config) ? 'team' : 'solo',
+        me,
+        occupiedAreas: [...occupiedAreas],
+        worktrees,
+        openPrs,
+        ranked,
+        blocked,
+        warnings,
+    };
     if (wantJson) {
         process.stdout.write(JSON.stringify(result, null, 2) + '\n');
         return;
@@ -433,7 +444,7 @@ function cmp(a, b) {
 function report({me, worktrees, openPrs, occupiedAreas, ranked, blocked, warnings}, config) {
     const out = [];
 
-    out.push(`진행 중인 작업${me ? ` (나: ${me})` : ''}`);
+    out.push(`진행 중인 작업  [${isTeam(config) ? '팀' : '개인'} 모드]${me ? `  나: ${me}` : ''}`);
     if (worktrees.length === 0 && openPrs.length === 0) {
         out.push('  (없음 — 겹칠 작업이 없다)');
     }
@@ -482,9 +493,10 @@ function report({me, worktrees, openPrs, occupiedAreas, ranked, blocked, warning
         out.push('');
     }
 
-    if (warnings.length) {
+    const uniq = uniqueWarnings();
+    if (uniq.length) {
         out.push('확인이 필요한 점');
-        for (const w of warnings) out.push(`  - ${w}`);
+        for (const w of uniq) out.push(`  - ${w}`);
         out.push('');
     }
 

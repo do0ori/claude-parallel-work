@@ -20,7 +20,19 @@
  *   1  선점 실패 (경합에 졌거나 인자가 잘못됨) — 다음 후보로 넘어가라
  */
 
-import {ghJson, ghText, loadConfig, repoRoot, repoOwner, currentUser, resolveProjectNumber, warnings, printWarnings} from './lib.mjs';
+import {
+    claimStatusFor,
+    currentUser,
+    ghJson,
+    ghText,
+    isTeam,
+    loadConfig,
+    printWarnings,
+    repoOwner,
+    repoRoot,
+    resolveProjectNumber,
+    warnings,
+} from './lib.mjs';
 
 function parseArgs(argv) {
     const positional = argv.filter((a) => !a.startsWith('--'));
@@ -131,7 +143,7 @@ function main() {
     }
 
     let moved = null;
-    const wanted = status || (noStatus ? null : config.claimStatus);
+    const wanted = status || (noStatus ? null : claimStatusFor(config));
     if (wanted) {
         const owner = repoOwner();
         const projectNumber = resolveProjectNumber(owner, config);
@@ -140,6 +152,10 @@ function main() {
 
     process.stdout.write(`선점 완료: #${number} ${after?.title || ''}\n`);
     process.stdout.write(`  assignee=${me}${moved ? `, ${config.statusField}=${moved}` : ''}\n`);
+    if (isTeam(config)) {
+        // 남의 로컬 워크트리는 이 도구가 볼 수 없다. draft PR 이 그 구멍을 메운다.
+        process.stdout.write('  팀 모드: 작업을 시작하면서 draft PR 을 먼저 열어라. 그래야 남에게 점유가 보인다.\n');
+    }
     printWarnings();
 }
 

@@ -74,6 +74,24 @@ claude plugin install parallel-work@do0ori
 | 4 | 라벨 — `bug` > `enhancement` > 그 외 |
 | 5 | 이슈 번호 — 오래된 것 먼저 |
 
+## 모드
+
+`mode` 가 `"team"`(기본) 또는 `"solo"` 다. 조사 결과 첫 줄에 어느 모드인지 찍힌다.
+
+| | team | solo |
+| --- | --- | --- |
+| 선점 시 Project Status | `In Progress` 로 옮긴다 | 건드리지 않는다 |
+| 선점 후 되읽기 | 한다 | 한다 — 내 세션끼리도 부딪힌다 |
+| draft PR 먼저 열라고 안내 | 한다 | 하지 않는다 |
+| 남이 담당인 이슈 | 후보에서 뺀다 | 해당 없음 |
+
+`team` 이 기본이다. 잘못 골랐을 때 team 쪽이 안전하다 — 확인이 하나 더 붙을
+뿐이지만, 반대로 팀에서 solo 로 돌면 남의 작업을 덮어쓸 수 있다. `mode` 에
+`team`/`solo` 가 아닌 값이 들어 있으면 경고하고 team 으로 본다.
+
+혼자 쓰더라도 `claimStatus` 를 직접 지정하면 Status 를 옮기게 할 수 있다. 모드는
+기본값을 정할 뿐 개별 설정을 덮어쓰지 않는다.
+
 ## 설정
 
 저장소 루트에 `.claude/parallel-work.json` 을 두면 기본값을 덮어쓴다. 없어도
@@ -81,6 +99,7 @@ claude plugin install parallel-work@do0ori
 
 ```json
 {
+    "mode": "team",
     "projectNumber": 1,
     "priorityField": "Priority",
     "priorityOrder": ["P0", "P1", "P2"],
@@ -99,6 +118,7 @@ claude plugin install parallel-work@do0ori
 
 | 키 | 뜻 |
 | --- | --- |
+| `mode` | `"team"`(기본) 또는 `"solo"`. 위 표를 보라 |
 | `projectNumber` | GitHub Project 번호. 생략하면 소유자의 Project 가 정확히 하나일 때만 자동으로 찾는다 |
 | `priorityField` / `statusField` | Project 의 필드 이름 |
 | `priorityOrder` / `statusOrder` | 앞에 있을수록 먼저. `""` 는 값이 비어 있는 이슈 |

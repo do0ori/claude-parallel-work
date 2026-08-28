@@ -8,7 +8,8 @@ Claude Code 는 이미 `claude --worktree <이름>` 으로 워크트리를 만�
 사람이 기억해야 하고, 결국 두 세션이 같은 파일을 만지거나 이미 하고 있는 일을
 또 집는다.
 
-이 플러그인은 그 판단만 담당한다. 워크트리를 만들지도, 세션을 띄우지도 않는다.
+이 플러그인은 그 판단을 담당한다. 워크트리는 직접 만들지 않는다 —
+`claude --worktree` 가 이미 한다.
 
 ## 설치
 
@@ -54,9 +55,23 @@ claude plugin install parallel-work@do0ori
 - 후보 이슈의 영역이 진행 중인 워크트리의 영역과 겹치면 순위를 내린다.
 
 경로 → 영역 매핑은 저장소의 [`actions/labeler`](https://github.com/actions/labeler)
-설정(`.github/labeler.yaml`)을 그대로 읽는다. PR 라벨과 같은 규칙을 써야 "라벨이
-말하는 영역"과 "겹침 판정이 말하는 영역"이 갈라지지 않는다. 그 파일이 없으면
-최상위 디렉터리를 영역으로 삼는다.
+설정(`.github/labeler.yaml`)이 있으면 그대로 읽는다. PR 라벨과 같은 규칙을 써야
+"라벨이 말하는 영역"과 "겹침 판정이 말하는 영역"이 갈라지지 않는다.
+
+### actions/labeler 를 쓰지 않는 저장소
+
+**필수가 아니다.** `.github/labeler.yaml` 이 없으면 최상위 디렉터리를 영역으로
+삼는다 — `frontend/`, `backend/` 가 있으면 그게 영역이 된다. 그 사실은 경고로
+알린다.
+
+이슈 쪽은 라벨 이름으로 맞춘다. 이때 **글자와 숫자만 남기고 소문자로 만들어**
+비교하므로, 라벨이 `🖥️frontend` 든 `Front-End` 든 디렉터리 `frontend` 와 이어진다.
+그래서 라벨 이름을 디렉터리 이름에 맞춰 붙이기만 하면 labeler 없이도 겹침 판정이
+그대로 돈다.
+
+이슈에 영역과 이어지는 라벨이 하나도 없으면 그 이슈는 `영역 라벨 없음 — 겹침
+판정 불가` 로 표시된다. 순위에서 빠지지는 않지만, 겹치는지 아닌지는 사람이
+판단해야 한다.
 
 **겹침은 제외가 아니라 감점이다.** 겹치는 후보밖에 없으면 임의로 고르지 않고
 사람에게 묻는다.
@@ -80,8 +95,6 @@ claude plugin install parallel-work@do0ori
 
 | | team | solo |
 | --- | --- | --- |
-| 선점 시 Project Status | `In Progress` 로 옮긴다 | 건드리지 않는다 |
-| 선점 후 되읽기 | 한다 | 한다 — 내 세션끼리도 부딪힌다 |
 | draft PR 먼저 열라고 안내 | 한다 | 하지 않는다 |
 | 남이 담당인 이슈 | 후보에서 뺀다 | 해당 없음 |
 
@@ -89,8 +102,41 @@ claude plugin install parallel-work@do0ori
 뿐이지만, 반대로 팀에서 solo 로 돌면 남의 작업을 덮어쓸 수 있다. `mode` 에
 `team`/`solo` 가 아닌 값이 들어 있으면 경고하고 team 으로 본다.
 
-혼자 쓰더라도 `claimStatus` 를 직접 지정하면 Status 를 옮기게 할 수 있다. 모드는
-기본값을 정할 뿐 개별 설정을 덮어쓰지 않는다.
+**선점과 Status 관리는 모드에 딸리지 않는다.** 혼자 쓴다고 생략하지 않는다 —
+이 도구를 쓰는 상황 자체가 세션을 여럿 굴리는 상황이고, 그러면 행위자도 여럿이다.
+담당자만으로는 "잡아만 둔 것"과 "지금 붙어 있는 것"을 가르지 못하므로 Status 가
+필요하고, 선점 후 되읽기도 두 모드 모두 한다. 끄고 싶으면 `claimStatus` 를
+`null` 로 명시하라.
+
+## 새 세션을 여는 방식
+
+`launch` 가 고른다.
+
+| | 하는 일 |
+| --- | --- |
+| `print` (기본) | 붙여넣을 명령 한 줄을 출력한다 |
+| `session` | 새 창을 열어 그 안에서 세션을 바로 시작한다 |
+
+`print` 가 기본인 이유는 어느 터미널·어느 OS 에서든 확실히 동작하고, 띄우기 전에
+선택을 한 번 볼 수 있어서다.
+
+`session` 은 중간에 셸 스크립트를 하나 만들고 터미널에게 그것을 실행시킨다.
+명령을 터미널 인자로 직접 넘기면 OS 마다 다른 따옴표 규칙에 걸려 조용히 깨진다.
+
+| OS | 여는 방법 |
+| --- | --- |
+| Windows | Windows Terminal(`wt`) 이 있으면 새 탭, 없으면 새 `cmd` 창 |
+| macOS | `open -a Terminal` |
+| Linux | `x-terminal-emulator` / `gnome-terminal` / `konsole` / `xterm` 중 있는 것 |
+
+맞는 게 없으면 `terminalCommand` 로 직접 지정한다. `{script}` 가 실행할 파일로,
+`{dir}` 가 저장소 루트로 바뀐다.
+
+```json
+"terminalCommand": ["wezterm", "start", "--cwd", "{dir}", "--", "{script}"]
+```
+
+창을 여는 데 실패하면 붙여넣을 명령을 대신 내놓는다. 막다른 길이 되지는 않는다.
 
 ## 설정
 
@@ -109,6 +155,7 @@ claude plugin install parallel-work@do0ori
     "labelOrder": ["bug", "enhancement"],
     "areaSource": ".github/labeler.yaml",
     "claimStatus": "In Progress",
+    "launch": "print",
     "setup": {
         "frontend": "npm install --prefix frontend",
         "ai": "pip install -r ai/requirements.txt"
@@ -125,6 +172,8 @@ claude plugin install parallel-work@do0ori
 | `excludeStatuses` | 이 Status 인 이슈는 후보에서 제외 |
 | `areaSource` | 경로 → 영역 매핑을 읽을 파일 |
 | `claimStatus` | 선점할 때 옮길 Status. `null` 이면 옮기지 않는다 |
+| `launch` | `"print"`(기본) 또는 `"session"`. 위 표를 보라 |
+| `terminalCommand` | `session` 에서 창을 여는 명령을 직접 지정 |
 | `setup` | 영역별 환경 준비 명령. `/work-issue` 가 **건드릴 영역의 것만** 실행한다 |
 
 `statusOrder` 의 `""` 는 Project 에 올라 있지 않거나 Status 가 비어 있는 이슈를
@@ -145,8 +194,11 @@ proxy/.env
 `git`, 인증된 `gh`, Node 18 이상. 조사 스크립트는 외부 패키지를 쓰지 않는다 —
 `node_modules` 가 없는 새 워크트리에서도 돌아야 하기 때문이다.
 
-Windows 와 macOS 에서 똑같이 동작한다. 터미널을 여는 방법은 OS 마다 다르므로
-(`wt`, `open`, tmux…) 세션을 대신 띄우지 않고 명령만 출력하는 것도 그래서다.
+Windows, macOS, Linux 에서 똑같이 동작한다. 절대 경로를 박아두지 않고, 창을 여는
+방법은 OS 별로 갈라 처리한다.
+
+GitHub Project 는 없어도 된다. 없으면 Priority·Status 없이 겹침·라벨·이슈 번호
+로만 순위를 매기고, 그 사실을 경고로 알린다.
 
 ## 여러 명이 쓸 때
 

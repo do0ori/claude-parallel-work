@@ -32,6 +32,12 @@ export const DEFAULTS = {
     labelOrder: ['bug', 'enhancement'],
     areaSource: '.github/labeler.yaml',
     /**
+     * 고른 뒤 새 세션을 어떻게 여는가.
+     *   "print"   (기본) 붙여넣을 명령을 출력한다
+     *   "session" 새 창을 열어 그 안에서 세션을 시작한다
+     */
+    launch: 'print',
+    /**
      * 선점할 때 Project Status 를 이 값으로 옮긴다. null 이면 옮기지 않는다.
      * 적지 않으면 모드가 정한다 — claimStatusFor 를 보라.
      */
@@ -48,15 +54,17 @@ export function isTeam(config) {
 }
 
 /**
- * 선점할 때 옮길 Status.
+ * 선점할 때 옮길 Status. 모드와 무관하다.
  *
- * 설정에 claimStatus 가 있으면 그것을 쓴다. 없으면 모드가 정한다 — 팀에서는
- * 남에게 "내가 잡았다"를 보이는 신호가 필요하고, 혼자일 때는 필드 ID 를 뒤지는
- * 품에 비해 얻는 게 없다.
+ * 혼자 쓴다고 Status 를 생략하면 안 된다. 이 도구가 존재하는 이유가 세션을
+ * 여럿 굴리는 것이고, 그러면 행위자도 여럿이다. Status 는 그 세션들이 공유하는
+ * 유일한 신호다 — 담당자만으로는 "잡아만 둔 것"과 "지금 붙어 있는 것"을 가르지
+ * 못한다.
+ *
+ * 끄고 싶으면 설정에 claimStatus: null 을 명시하라.
  */
 export function claimStatusFor(config) {
-    if (config.claimStatus !== undefined) return config.claimStatus;
-    return isTeam(config) ? 'In Progress' : null;
+    return config.claimStatus !== undefined ? config.claimStatus : 'In Progress';
 }
 
 export const CONFIG_PATH = '.claude/parallel-work.json';

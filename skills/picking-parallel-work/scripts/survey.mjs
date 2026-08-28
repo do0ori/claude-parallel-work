@@ -168,6 +168,36 @@ function areasForPaths(paths, areaGlobs) {
     return found;
 }
 
+/**
+ * 영역 이름 비교용 정규화. 글자와 숫자만 남기고 소문자로 만든다.
+ *
+ * 이슈의 영역은 라벨 이름에서, 워크트리의 영역은 파일 경로에서 온다. 이 둘이
+ * 글자 그대로 같으리라 기대할 수 없다 — 라벨은 `🖥️frontend` 인데 폴백으로 잡은
+ * 영역은 디렉터리 이름 `frontend` 이고, `Front-End` 처럼 쓰는 저장소도 있다.
+ * 여기서 맞춰주지 않으면 actions/labeler 를 쓰지 않는 저장소에서 모든 이슈가
+ * "영역 없음" 이 되어 겹침 판정이 통째로 죽는다.
+ */
+function normalizeArea(name) {
+    return String(name)
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '');
+}
+
+/** 정규화한 이름 → 원래 영역 이름. 충돌하면 먼저 온 것을 남기고 알린다. */
+function areaLookup(areaNames) {
+    const byNorm = new Map();
+    for (const name of areaNames) {
+        const key = normalizeArea(name);
+        if (!key) continue;
+        if (byNorm.has(key)) {
+            warnings.push(`영역 "${name}" 과 "${byNorm.get(key)}" 이 같은 이름으로 읽힌다. 앞의 것만 쓴다.`);
+            continue;
+        }
+        byNorm.set(key, name);
+    }
+    return byNorm;
+}
+
 // --- 진행 중인 작업 ----------------------------------------------------------
 
 /** git worktree list --porcelain 을 파싱한다. 첫 항목이 주 체크아웃이다. */
@@ -244,6 +274,7 @@ function main() {
     const config = loadConfig(root);
     const areaGlobs = loadAreaGlobs(root, config);
     const areaNames = [...areaGlobs.keys()];
+    const areaByNorm = areaLookup(areaNames);
     const defaultBranch = defaultBranchRef();
 
     const owner = repoOwner();
@@ -337,7 +368,8 @@ function main() {
     // 후보 평가
     const candidates = issues.map((issue) => {
         const labels = issue.labels.map((l) => l.name);
-        const areas = labels.filter((l) => areaNames.includes(l));
+        // 라벨 이름을 그대로 비교하지 않는다 — normalizeArea 의 설명을 보라.
+        const areas = [...new Set(labels.map((l) => areaByNorm.get(normalizeArea(l))).filter(Boolean))];
         const meta = projectByIssue.get(issue.number) || {status: '', priority: ''};
 
         const assignees = issue.assignees.map((a) => a.login);

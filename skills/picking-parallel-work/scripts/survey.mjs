@@ -54,12 +54,27 @@ const NON_AREA_DIRS = new Set(['node_modules', 'vendor', 'dist', 'build', 'targe
 const wantJson = process.argv.includes('--json');
 const warnings = [];
 
+/**
+ * 자식 프로세스의 stderr 는 삼킨다. 실패는 전부 경고로 모아 한자리에서 보여주므로,
+ * git·gh 의 원본 오류가 중간에 끼어들면 보고서만 읽기 어려워진다.
+ */
 function run(file, args, opts = {}) {
-    return execFileSync(file, args, {encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, ...opts});
+    return execFileSync(file, args, {
+        encoding: 'utf8',
+        maxBuffer: 32 * 1024 * 1024,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        ...opts,
+    });
 }
 
 function git(args) {
     return run('git', args).trimEnd();
+}
+
+/** 실패 원인 중 사람이 읽을 만한 첫 줄. */
+function firstLine(err) {
+    const text = String(err.stderr || err.message || '').trim();
+    return text.split('\n')[0] || '알 수 없는 오류';
 }
 
 /** gh 호출. 실패해도 전체를 죽이지 않고 null 을 돌려준다. */
@@ -67,7 +82,7 @@ function ghJson(args) {
     try {
         return JSON.parse(run('gh', args));
     } catch (err) {
-        warnings.push(`gh ${args.slice(0, 2).join(' ')} 실패 — ${String(err.message).split('\n')[0]}`);
+        warnings.push(`gh ${args.slice(0, 2).join(' ')} 실패 — ${firstLine(err)}`);
         return null;
     }
 }

@@ -204,6 +204,9 @@ area forever — one leftover `frontend` worktree quietly demotes every frontend
 from then on. And because its commits are already in the default branch, no changed
 files show up, so the area comes from the branch-name guess and the mistake is silent.
 
+`/parallel-work:next-task` does this for you before it picks anything, and reports
+what it removed. You can also run it yourself:
+
 ```bash
 node <plugin>/skills/picking-parallel-work/scripts/cleanup.mjs          # what it would remove
 node <plugin>/skills/picking-parallel-work/scripts/cleanup.mjs --apply  # remove it

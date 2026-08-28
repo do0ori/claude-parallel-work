@@ -169,6 +169,9 @@ node <플러그인>/skills/picking-parallel-work/scripts/set-status.mjs <이슈�
 조용히 감점된다. 커밋이 이미 기본 브랜치에 있으니 변경 파일도 안 나와서 브랜치
 이름 추정으로 넘어가고, 그래서 틀린 줄도 모른다.
 
+`/parallel-work:next-task` 가 고르기 전에 알아서 하고 무엇을 지웠는지 보고한다.
+직접 돌릴 수도 있다.
+
 ```bash
 node <플러그인>/skills/picking-parallel-work/scripts/cleanup.mjs          # 무엇을 지울지
 node <플러그인>/skills/picking-parallel-work/scripts/cleanup.mjs --apply  # 지운다

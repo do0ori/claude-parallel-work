@@ -1,3 +1,6 @@
 # 모든 텍스트 파일을 저장소에 LF 로 저장한다.
 # Windows 와 macOS 를 오가며 쓰는 플러그인이라 줄바꿈이 갈리면 diff 가 통째로 뒤집힌다.
 * text=auto eol=lf
+
+# 이미지는 줄바꿈 변환에서 제외한다.
+*.png binary

@@ -1,3 +1,5 @@
+![parallel-work — pick the next issue that won't collide](assets/social-preview.png)
+
 # parallel-work
 
 A Claude Code plugin that picks the next GitHub issue which **won't collide** with

@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-label="parallel-work — pick the next issue that won't collide">
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#1D1A16" stroke-width="1"/>
+    </pattern>
+    <linearGradient id="fade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#12100E" stop-opacity="0"/>
+      <stop offset="1" stop-color="#12100E" stop-opacity="0.75"/>
+    </linearGradient>
+    <style>
+      .sans { font-family: "Segoe UI", Inter, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif; }
+      .mono { font-family: Consolas, "SF Mono", "JetBrains Mono", ui-monospace, Menlo, monospace; }
+      .lane { fill: none; stroke-width: 3.5; stroke-linecap: round; }
+    </style>
+  </defs>
+
+  <rect width="1280" height="640" fill="#12100E"/>
+  <rect width="1280" height="640" fill="url(#grid)"/>
+  <rect width="1280" height="640" fill="url(#fade)"/>
+
+  <g class="mono" font-size="19" letter-spacing="2.5">
+    <text x="80" y="116" fill="#8A8177">A CLAUDE CODE PLUGIN</text>
+  </g>
+
+  <text x="78" y="205" class="sans" font-size="76" font-weight="600" letter-spacing="-2" fill="#F5F1EB">parallel-work</text>
+  <text x="80" y="256" class="sans" font-size="31" font-weight="400" fill="#B7ADA1">Pick the next issue that won&#8217;t collide.</text>
+
+  <!-- branch origin -->
+  <line x1="80" y1="445" x2="118" y2="445" stroke="#6E645A" stroke-width="3.5" stroke-linecap="round"/>
+  <circle cx="118" cy="445" r="9" fill="#12100E" stroke="#CFC5B8" stroke-width="3.5"/>
+
+  <g class="mono" font-size="21">
+    <!-- frontend -->
+    <path class="lane" d="M127 445 C 178 445, 178 355, 232 355 L 934 355" stroke="#D97757"/>
+    <circle cx="934" cy="355" r="7.5" fill="#D97757"/>
+    <text x="970" y="362" fill="#D97757">frontend</text>
+    <rect x="1104" y="337" width="96" height="37" rx="18.5" fill="#D97757" fill-opacity="0.14" stroke="#D97757" stroke-opacity="0.5"/>
+    <text x="1152" y="362" fill="#E9A085" text-anchor="middle">#29</text>
+
+    <!-- backend -->
+    <path class="lane" d="M127 445 C 178 445, 178 415, 232 415 L 934 415" stroke="#8FB8A8"/>
+    <circle cx="934" cy="415" r="7.5" fill="#8FB8A8"/>
+    <text x="970" y="422" fill="#8FB8A8">backend</text>
+    <rect x="1104" y="397" width="96" height="37" rx="18.5" fill="#8FB8A8" fill-opacity="0.14" stroke="#8FB8A8" stroke-opacity="0.5"/>
+    <text x="1152" y="422" fill="#A9CCBE" text-anchor="middle">#31</text>
+
+    <!-- ai -->
+    <path class="lane" d="M127 445 C 178 445, 178 475, 232 475 L 934 475" stroke="#E8B86D"/>
+    <circle cx="934" cy="475" r="7.5" fill="#E8B86D"/>
+    <text x="970" y="482" fill="#E8B86D">ai</text>
+    <rect x="1104" y="457" width="96" height="37" rx="18.5" fill="#E8B86D" fill-opacity="0.14" stroke="#E8B86D" stroke-opacity="0.5"/>
+    <text x="1152" y="482" fill="#EEC98F" text-anchor="middle">#34</text>
+
+    <!-- overlap: demoted -->
+    <path class="lane" d="M127 445 C 178 445, 178 535, 232 535 L 934 535" stroke="#4A433B" stroke-width="3" stroke-dasharray="2 11"/>
+    <circle cx="560" cy="535" r="17" fill="#12100E"/>
+    <g stroke="#6E645A" stroke-width="3" stroke-linecap="round">
+      <line x1="551" y1="526" x2="569" y2="544"/>
+      <line x1="569" y1="526" x2="551" y2="544"/>
+    </g>
+    <text x="970" y="542" fill="#6E645A">overlap</text>
+    <text x="1152" y="542" fill="#5C544B" text-anchor="middle">demoted</text>
+  </g>
+
+  <g class="mono" font-size="18">
+    <rect x="80" y="578" width="146" height="36" rx="8" fill="#D97757" fill-opacity="0.12" stroke="#D97757" stroke-opacity="0.35"/>
+    <text x="100" y="602" fill="#D97757">/next-task</text>
+    <text x="1200" y="602" fill="#6E645A" text-anchor="end">github.com/do0ori/claude-parallel-work</text>
+  </g>
+</svg>

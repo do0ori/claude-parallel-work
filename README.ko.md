@@ -1,3 +1,5 @@
+![parallel-work — 겹치지 않는 다음 이슈를 고른다](assets/social-preview.png)
+
 # parallel-work
 
 [English](README.md)

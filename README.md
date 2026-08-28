@@ -89,6 +89,7 @@ claude plugin install parallel-work@do0ori
     "excludeStatuses": ["In Progress", "Done"],
     "labelOrder": ["bug", "enhancement"],
     "areaSource": ".github/labeler.yaml",
+    "claimStatus": "In Progress",
     "setup": {
         "frontend": "npm install --prefix frontend",
         "ai": "pip install -r ai/requirements.txt"
@@ -103,6 +104,7 @@ claude plugin install parallel-work@do0ori
 | `priorityOrder` / `statusOrder` | 앞에 있을수록 먼저. `""` 는 값이 비어 있는 이슈 |
 | `excludeStatuses` | 이 Status 인 이슈는 후보에서 제외 |
 | `areaSource` | 경로 → 영역 매핑을 읽을 파일 |
+| `claimStatus` | 선점할 때 옮길 Status. `null` 이면 옮기지 않는다 |
 | `setup` | 영역별 환경 준비 명령. `/work-issue` 가 **건드릴 영역의 것만** 실행한다 |
 
 `statusOrder` 의 `""` 는 Project 에 올라 있지 않거나 Status 가 비어 있는 이슈를
@@ -128,20 +130,26 @@ Windows 와 macOS 에서 똑같이 동작한다. 터미널을 여는 방법은 O
 
 ## 여러 명이 쓸 때
 
-이 플러그인은 **한 사람이 세션을 여럿 띄우는 상황**을 전제로 만들었다. 팀에서
-쓰려면 아래를 더해야 한다.
+혼자 세션을 여럿 띄우든 팀으로 나눠 쓰든 똑같이 동작한다.
 
-- **선점 경합 확인.** 지금은 `gh issue edit --add-assignee @me` 만 한다.
-  사람이 여럿이면 선점 직후 `gh issue view --json assignees` 로 되읽어, 담당자가
-  내가 아니면 다음 후보로 넘어가는 단계가 필요하다.
-- **남의 담당 구분.** 지금은 담당자가 있는 이슈를 전부 똑같이 제외한다.
-  "내가 담당인데 아직 시작 안 한 것"은 이어받아야 하고 "남이 담당인 것"은
-  건드리면 안 되는데, 이 둘을 구분하지 않는다.
-- **남의 워크트리는 안 보인다.** 겹침 판정은 `git worktree list`, 즉 **내
-  머신의 워크트리**만 본다. 남의 진행 중 작업은 열린 PR 로만 보인다. PR 을
-  일찍(draft 로) 여는 규칙을 함께 두거나, 원격 브랜치도 조사해야 한다.
-- **Project Status 자동 갱신.** 선점할 때 `In Progress` 로, 머지 뒤 `Done` 으로
-  옮기는 것. 지금은 손으로 옮긴 값을 읽기만 한다.
+- **선점 경합.** GitHub 에는 이슈를 원자적으로 잠그는 수단이 없다. 같은 순간에
+  둘이 집으면 둘 다 담당자로 올라간다. `claim.mjs` 는 담당자를 건 뒤 **되읽어**
+  다른 사람이 함께 올라와 있는지 본다. 그렇다면 0 이 아닌 값으로 끝나고, 늦게
+  온 쪽이 물러난다. 이 되읽기가 락을 대신한다.
+- **내 담당과 남의 담당.** 남이 담당인 이슈는 후보에서 뺀다. 내가 담당인 이슈는
+  빼지 않고 `이미 내가 선점함 — 이어받기` 로 표시해 **순위 맨 앞**에 올린다.
+  지난번에 걸어두고 아직 시작하지 않은 것을 먼저 끝내라는 뜻이다.
+- **남의 진행 중 작업.** 열린 PR 의 변경 파일에서 영역을 뽑아 점유에 반영한다.
+  작성자와 draft 여부도 함께 보여준다.
+
+### 하나 남는 한계
+
+**남의 로컬 워크트리는 볼 수 없다.** `git worktree list` 는 내 머신만 안다.
+아직 PR 을 열지 않은 남의 작업은 이 도구에 보이지 않는다.
+
+이건 도구로 메울 수 없고 팀 규칙으로 메워야 한다 — **작업을 시작하면서 draft PR
+을 먼저 여는 것.** 그러면 그 순간부터 변경 파일이 점유 영역에 잡힌다. 선점
+단계에서 Status 를 `In Progress` 로 옮기는 것도 같은 구멍을 좁힌다.
 
 ## 라이선스
 

@@ -24,87 +24,24 @@
  *   node <플러그인>/skills/picking-parallel-work/scripts/survey.mjs [--json]
  */
 
-import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-/**
- * 설정하지 않았을 때의 기본값.
- *
- * projectNumber 가 null 이면 저장소 소유자의 Project 를 찾아보고, 정확히 하나일
- * 때만 그걸 쓴다. 여러 개면 어느 것인지 사람이 정해야 하므로 Project 정보 없이
- * 진행하고 경고를 남긴다.
- */
-const DEFAULTS = {
-    projectNumber: null,
-    priorityField: 'Priority',
-    priorityOrder: ['P0', 'P1', 'P2'],
-    statusField: 'Status',
-    statusOrder: ['Todo', '', 'Backlog'],
-    excludeStatuses: ['In Progress', 'Done'],
-    labelOrder: ['bug', 'enhancement'],
-    areaSource: '.github/labeler.yaml',
-};
-
-const CONFIG_PATH = '.claude/parallel-work.json';
+import {
+    currentUser,
+    ghJson,
+    git,
+    loadConfig,
+    repoOwner,
+    repoRoot,
+    resolveProjectNumber,
+    warnings,
+} from './lib.mjs';
 
 /** 영역 자동 추론에서 빼는 최상위 디렉터리. 어느 저장소에나 있고 영역이 아니다. */
 const NON_AREA_DIRS = new Set(['node_modules', 'vendor', 'dist', 'build', 'target', 'out']);
 
 const wantJson = process.argv.includes('--json');
-const warnings = [];
-
-/**
- * 자식 프로세스의 stderr 는 삼킨다. 실패는 전부 경고로 모아 한자리에서 보여주므로,
- * git·gh 의 원본 오류가 중간에 끼어들면 보고서만 읽기 어려워진다.
- */
-function run(file, args, opts = {}) {
-    return execFileSync(file, args, {
-        encoding: 'utf8',
-        maxBuffer: 32 * 1024 * 1024,
-        stdio: ['ignore', 'pipe', 'pipe'],
-        ...opts,
-    });
-}
-
-function git(args) {
-    return run('git', args).trimEnd();
-}
-
-/** 실패 원인 중 사람이 읽을 만한 첫 줄. */
-function firstLine(err) {
-    const text = String(err.stderr || err.message || '').trim();
-    return text.split('\n')[0] || '알 수 없는 오류';
-}
-
-/** gh 호출. 실패해도 전체를 죽이지 않고 null 을 돌려준다. */
-function ghJson(args) {
-    try {
-        return JSON.parse(run('gh', args));
-    } catch (err) {
-        warnings.push(`gh ${args.slice(0, 2).join(' ')} 실패 — ${firstLine(err)}`);
-        return null;
-    }
-}
-
-/**
- * 저장소 루트. 워크트리 하위 디렉터리에서 불릴 수 있으므로 cwd 를 믿지 않는다.
- * 워크트리 안에서는 그 워크트리의 루트를 준다.
- */
-function repoRoot() {
-    return git(['rev-parse', '--show-toplevel']);
-}
-
-function loadConfig(root) {
-    const file = path.join(root, CONFIG_PATH);
-    if (!fs.existsSync(file)) return {...DEFAULTS};
-    try {
-        return {...DEFAULTS, ...JSON.parse(fs.readFileSync(file, 'utf8'))};
-    } catch (err) {
-        // 설정이 깨졌으면 조용히 기본값으로 넘어가지 않는다. 순위가 말없이 달라진다.
-        throw new Error(`${CONFIG_PATH} 를 읽을 수 없다 — ${err.message}`);
-    }
-}
 
 // --- 영역 판정 ---------------------------------------------------------------
 
@@ -279,11 +216,23 @@ function defaultBranchRef() {
     }
 }
 
-/** 텍스트에서 참조된 이슈 번호를 뽑는다. */
-function issueRefs(text) {
+/**
+ * PR 이 실제로 처리 중인 이슈.
+ *
+ * 1순위는 GitHub 이 스스로 연결한 closingIssuesReferences 다. 본문의 `#N` 을
+ * 전부 긁으면 안 된다 — 설명에 다른 이슈를 언급하거나 예시 출력을 붙여넣기만 해도
+ * 그 이슈들이 통째로 "진행 중"으로 잘못 제외된다.
+ *
+ * 연결이 비어 있을 때만 본문에서 닫기 키워드가 붙은 참조를 찾는다.
+ */
+function closingIssues(pr) {
+    const linked = (pr.closingIssuesReferences || []).map((r) => r.number).filter((n) => typeof n === 'number');
+    if (linked.length > 0) return [...new Set(linked)];
+
     const nums = new Set();
-    for (const m of String(text || '').matchAll(/#(\d+)/g)) nums.add(Number(m[1]));
-    return nums;
+    const pattern = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/gi;
+    for (const m of String(pr.body || '').matchAll(pattern)) nums.add(Number(m[1]));
+    return [...nums];
 }
 
 // --- 본체 -------------------------------------------------------------------
@@ -295,8 +244,7 @@ function main() {
     const areaNames = [...areaGlobs.keys()];
     const defaultBranch = defaultBranchRef();
 
-    const repo = ghJson(['repo', 'view', '--json', 'owner,name']);
-    const owner = repo?.owner?.login;
+    const owner = repoOwner();
 
     const issues =
         ghJson([
@@ -311,7 +259,21 @@ function main() {
         ]) || [];
 
     const prs =
-        ghJson(['pr', 'list', '--state', 'open', '--limit', '200', '--json', 'number,title,body,headRefName']) || [];
+        ghJson([
+            'pr',
+            'list',
+            '--state',
+            'open',
+            '--limit',
+            '200',
+            '--json',
+            'number,title,body,headRefName,files,author,isDraft,closingIssuesReferences',
+        ]) || [];
+
+    // 담당자가 나인지 남인지 갈라야 한다. 내 담당은 이어받을 것이고, 남의 담당은
+    // 건드리면 안 되는 것이다.
+    const me = currentUser();
+    if (!me) warnings.push('현재 GitHub 사용자를 알지 못해 내 담당과 남의 담당을 구분하지 못했다');
 
     const projectByIssue = loadProjectMeta(owner, config);
 
@@ -329,7 +291,7 @@ function main() {
             }
         }
         const pr = prs.find((p) => p.headRefName === wt.branch);
-        const refs = new Set([...issueRefs(pr?.body), ...issueRefs(pr?.title)]);
+        const refs = pr ? closingIssues(pr) : [];
         return {
             path: wt.path,
             branch: wt.branch,
@@ -341,12 +303,24 @@ function main() {
         };
     });
 
+    // 남의 워크트리는 보이지 않는다. `git worktree list` 는 내 머신만 안다.
+    // 열린 PR 의 변경 파일이 팀의 진행 중 작업을 보는 유일한 창이다.
+    const openPrs = prs.map((pr) => ({
+        number: pr.number,
+        branch: pr.headRefName,
+        author: pr.author?.login || '?',
+        isDraft: Boolean(pr.isDraft),
+        areas: [...areasForPaths((pr.files || []).map((f) => f.path), areaGlobs)],
+        issues: closingIssues(pr),
+    }));
+
     const occupiedAreas = new Set();
     for (const wt of worktrees) for (const a of wt.areas) occupiedAreas.add(a);
+    for (const pr of openPrs) for (const a of pr.areas) occupiedAreas.add(a);
 
     const inFlight = new Set();
     for (const wt of worktrees) for (const n of wt.issues) inFlight.add(n);
-    for (const pr of prs) for (const n of issueRefs(pr.body)) inFlight.add(n);
+    for (const pr of openPrs) for (const n of pr.issues) inFlight.add(n);
 
     // 특정 못한 워크트리는 조용히 넘기지 않는다 — 사람이 봐야 할 불확실성이다
     for (const wt of worktrees) {
@@ -364,8 +338,13 @@ function main() {
         const areas = labels.filter((l) => areaNames.includes(l));
         const meta = projectByIssue.get(issue.number) || {status: '', priority: ''};
 
+        const assignees = issue.assignees.map((a) => a.login);
+        const others = me ? assignees.filter((a) => a !== me) : assignees;
+        // 담당자를 모르면(me 를 못 알아냈으면) 남의 것으로 보고 보수적으로 뺀다
+        const minePending = Boolean(me) && assignees.includes(me) && others.length === 0;
+
         const blockers = [];
-        if (issue.assignees.length > 0) blockers.push(`담당자 있음 (${issue.assignees.map((a) => a.login).join(', ')})`);
+        if (others.length > 0) blockers.push(`다른 사람 담당 (${others.join(', ')})`);
         if (config.excludeStatuses.includes(meta.status)) blockers.push(`${config.statusField} = ${meta.status}`);
         if (inFlight.has(issue.number)) blockers.push('진행 중인 워크트리·PR 이 참조 중');
 
@@ -378,12 +357,15 @@ function main() {
             priority: meta.priority,
             status: meta.status,
             blockers,
+            // 내가 선점만 해두고 아직 시작하지 않은 것. 막을 게 아니라 이어받을 것이다.
+            minePending,
             overlaps: areas.filter((a) => occupiedAreas.has(a)),
             unknownArea: areas.length === 0,
         };
     });
 
     const rankKey = (c) => [
+        c.minePending ? 0 : 1, // 이미 선점해 둔 내 작업을 먼저 이어받는다
         indexOrLast(config.priorityOrder, c.priority),
         c.overlaps.length > 0 ? 1 : 0, // 겹치면 뒤로 — 제외가 아니라 감점이다
         indexOrLast(config.statusOrder, c.status),
@@ -394,7 +376,7 @@ function main() {
     const ranked = candidates.filter((c) => c.blockers.length === 0).sort((a, b) => cmp(rankKey(a), rankKey(b)));
     const blocked = candidates.filter((c) => c.blockers.length > 0).sort((a, b) => a.number - b.number);
 
-    const result = {occupiedAreas: [...occupiedAreas], worktrees, ranked, blocked, warnings};
+    const result = {me, occupiedAreas: [...occupiedAreas], worktrees, openPrs, ranked, blocked, warnings};
     if (wantJson) {
         process.stdout.write(JSON.stringify(result, null, 2) + '\n');
         return;
@@ -407,22 +389,8 @@ function loadProjectMeta(owner, config) {
     const byIssue = new Map();
     if (!owner) return byIssue;
 
-    let number = config.projectNumber;
-    if (number == null) {
-        const list = ghJson(['project', 'list', '--owner', owner, '--format', 'json']);
-        const projects = list?.projects || [];
-        if (projects.length === 1) {
-            number = projects[0].number;
-        } else {
-            warnings.push(
-                projects.length === 0
-                    ? 'GitHub Project 를 찾지 못해 Priority·Status 없이 순위를 매겼다'
-                    : `Project 가 ${projects.length} 개라 어느 것인지 정하지 못했다. ` +
-                          `${CONFIG_PATH} 에 projectNumber 를 지정하라.`
-            );
-            return byIssue;
-        }
-    }
+    const number = resolveProjectNumber(owner, config);
+    if (number == null) return byIssue;
 
     const proj = ghJson([
         'project',
@@ -462,28 +430,39 @@ function cmp(a, b) {
     return 0;
 }
 
-function report({worktrees, occupiedAreas, ranked, blocked, warnings}, config) {
+function report({me, worktrees, openPrs, occupiedAreas, ranked, blocked, warnings}, config) {
     const out = [];
 
-    out.push('진행 중인 워크트리');
-    if (worktrees.length === 0) {
+    out.push(`진행 중인 작업${me ? ` (나: ${me})` : ''}`);
+    if (worktrees.length === 0 && openPrs.length === 0) {
         out.push('  (없음 — 겹칠 작업이 없다)');
-    } else {
-        for (const wt of worktrees) {
-            const issues = wt.issues.length ? `#${wt.issues.join(', #')}` : '이슈 불명';
-            out.push(
-                `  ${wt.branch || wt.path}  ${issues}  파일 ${wt.changedCount} 개` +
-                    `  영역: ${wt.areas.join(', ') || '알 수 없음'} (${wt.areaSource})` +
-                    (wt.locked ? '  [locked]' : '')
-            );
-        }
+    }
+    for (const wt of worktrees) {
+        const issues = wt.issues.length ? `#${wt.issues.join(', #')}` : '이슈 불명';
+        out.push(
+            `  [내 워크트리] ${wt.branch || wt.path}  ${issues}  파일 ${wt.changedCount} 개` +
+                `  영역: ${wt.areas.join(', ') || '알 수 없음'} (${wt.areaSource})` +
+                (wt.locked ? '  [locked]' : '')
+        );
+    }
+    for (const pr of openPrs) {
+        const issues = pr.issues.length ? `#${pr.issues.join(', #')}` : '이슈 불명';
+        out.push(
+            `  [열린 PR] #${pr.number} ${pr.branch}  ${pr.author}${pr.isDraft ? ' (draft)' : ''}  ${issues}` +
+                `  영역: ${pr.areas.join(', ') || '알 수 없음'}`
+        );
     }
     out.push(`  점유 영역: ${occupiedAreas.join(', ') || '없음'}`);
     out.push('');
 
     out.push(`가져갈 수 있는 후보 (${ranked.length} 개, 위에서부터)`);
     for (const c of ranked.slice(0, 8)) {
-        const bits = [c.priority || '우선순위 미설정', c.status || `${config.statusField} 미설정`, ...c.areas];
+        const bits = [
+            ...(c.minePending ? ['이미 내가 선점함 — 이어받기'] : []),
+            c.priority || '우선순위 미설정',
+            c.status || `${config.statusField} 미설정`,
+            ...c.areas,
+        ];
         const note = c.overlaps.length
             ? `  ⚠ 겹침: ${c.overlaps.join(', ')}`
             : c.unknownArea

@@ -26,8 +26,12 @@ claude plugin install parallel-work@do0ori
 /next-task
 ```
 
+**커맨드를 외울 필요는 없다.** 그냥 말해도 된다 — "다음 뭐 할까", "겹치지 않는
+작업 하나 가져와", "새 세션 띄워서 하나 더 시작하자" 같은 말에 알아서 걸린다.
+`/next-task` 와 `/work-issue` 는 같은 스킬로 들어가는 지름길일 뿐이다.
+
 진행 중인 워크트리를 조사해 겹치지 않는 이슈를 고르고, 담당자로 자신을 걸고,
-붙여넣을 명령을 준다.
+새 세션을 연다.
 
 ```
 선택: #29 SplashScreen 이 SafeAreaProvider 바깥에서 렌더된다
@@ -89,25 +93,6 @@ claude plugin install parallel-work@do0ori
 | 4 | 라벨 — `bug` > `enhancement` > 그 외 |
 | 5 | 이슈 번호 — 오래된 것 먼저 |
 
-## 모드
-
-`mode` 가 `"team"`(기본) 또는 `"solo"` 다. 조사 결과 첫 줄에 어느 모드인지 찍힌다.
-
-| | team | solo |
-| --- | --- | --- |
-| draft PR 먼저 열라고 안내 | 한다 | 하지 않는다 |
-| 남이 담당인 이슈 | 후보에서 뺀다 | 해당 없음 |
-
-`team` 이 기본이다. 잘못 골랐을 때 team 쪽이 안전하다 — 확인이 하나 더 붙을
-뿐이지만, 반대로 팀에서 solo 로 돌면 남의 작업을 덮어쓸 수 있다. `mode` 에
-`team`/`solo` 가 아닌 값이 들어 있으면 경고하고 team 으로 본다.
-
-**선점과 Status 관리는 모드에 딸리지 않는다.** 혼자 쓴다고 생략하지 않는다 —
-이 도구를 쓰는 상황 자체가 세션을 여럿 굴리는 상황이고, 그러면 행위자도 여럿이다.
-담당자만으로는 "잡아만 둔 것"과 "지금 붙어 있는 것"을 가르지 못하므로 Status 가
-필요하고, 선점 후 되읽기도 두 모드 모두 한다. 끄고 싶으면 `claimStatus` 를
-`null` 로 명시하라.
-
 ## 새 세션을 여는 방식
 
 `launch` 가 고른다.
@@ -140,12 +125,28 @@ claude plugin install parallel-work@do0ori
 
 ## 설정
 
-저장소 루트에 `.claude/parallel-work.json` 을 두면 기본값을 덮어쓴다. 없어도
-동작한다.
+**설정 없이 그냥 써도 된다.** `.claude/parallel-work.json` 은 선택이다. Project 가
+하나뿐이면 알아서 찾고, 영역은 `.github/labeler.yaml` 이나 최상위 디렉터리에서
+읽고, 나머지는 기본값으로 돈다. 값을 못 정한 자리는 조용히 넘어가지 않고 경고로
+알린다.
+
+필요해지는 시점도 정해져 있다.
+
+| 증상 | 채울 것 |
+| --- | --- |
+| "Project 가 N 개라 정하지 못했다" 경고 | `projectNumber` |
+| Priority·Status 값 이름이 다른 저장소 | `priorityField` / `statusField` / `priorityOrder` / `statusOrder` |
+| 새 워크트리에서 빌드가 설치물 없이 실패 | `setup` |
+| 새 세션을 창까지 열어 시작하고 싶다 | `launch` |
+
+**직접 쓸 필요도 없다.** "병렬 작업 설정해줘" 라고 하면 저장소를 읽어 값을
+제안한다 — Project 목록과 필드 이름은 `gh` 로 확인하고, 영역별 준비 명령은
+`package.json`·`requirements.txt` 가 어디 있는지 보고 채운다.
+
+파일을 두면 아래 키를 덮어쓸 수 있다.
 
 ```json
 {
-    "mode": "team",
     "projectNumber": 1,
     "priorityField": "Priority",
     "priorityOrder": ["P0", "P1", "P2"],
@@ -165,7 +166,6 @@ claude plugin install parallel-work@do0ori
 
 | 키 | 뜻 |
 | --- | --- |
-| `mode` | `"team"`(기본) 또는 `"solo"`. 위 표를 보라 |
 | `projectNumber` | GitHub Project 번호. 생략하면 소유자의 Project 가 정확히 하나일 때만 자동으로 찾는다 |
 | `priorityField` / `statusField` | Project 의 필드 이름 |
 | `priorityOrder` / `statusOrder` | 앞에 있을수록 먼저. `""` 는 값이 비어 있는 이슈 |
@@ -200,9 +200,22 @@ Windows, macOS, Linux 에서 똑같이 동작한다. 절대 경로를 박아두�
 GitHub Project 는 없어도 된다. 없으면 Priority·Status 없이 겹침·라벨·이슈 번호
 로만 순위를 매기고, 그 사실을 경고로 알린다.
 
+## draft PR 을 먼저 연다
+
+이 도구가 지키는 하나의 규칙이다. 작업을 **시작하면서** PR 을 draft 로 열고,
+본문에 `Closes #<번호>` 를 넣는다.
+
+로컬 워크트리는 `git worktree list` 로만 보이고 그건 **내 머신만** 안다. 게다가
+그 워크트리가 어느 이슈의 작업인지는 연결된 PR 이 있어야 안다. draft PR 하나가
+그 둘을 동시에 메운다 — 남에게도 보이고, 나중에 세션을 하나 더 띄우는 나에게도
+보인다. 다 만들고 나서 열면 그동안 누군가 같은 영역을 집는다.
+
+혼자 쓸 때도 마찬가지다. PR 이 없으면 `이슈 불명` 으로 뜨고, 그 워크트리가 잡고
+있는 이슈가 후보 목록에 그대로 남는다.
+
 ## 여러 명이 쓸 때
 
-혼자 세션을 여럿 띄우든 팀으로 나눠 쓰든 똑같이 동작한다.
+혼자 세션을 여럿 띄우든 팀으로 나눠 쓰든 똑같이 동작한다. 모드 같은 건 없다.
 
 - **선점 경합.** GitHub 에는 이슈를 원자적으로 잠그는 수단이 없다. 같은 순간에
   둘이 집으면 둘 다 담당자로 올라간다. `claim.mjs` 는 담당자를 건 뒤 **되읽어**
@@ -216,12 +229,9 @@ GitHub Project 는 없어도 된다. 없으면 Priority·Status 없이 겹침·�
 
 ### 하나 남는 한계
 
-**남의 로컬 워크트리는 볼 수 없다.** `git worktree list` 는 내 머신만 안다.
-아직 PR 을 열지 않은 남의 작업은 이 도구에 보이지 않는다.
-
-이건 도구로 메울 수 없고 팀 규칙으로 메워야 한다 — **작업을 시작하면서 draft PR
-을 먼저 여는 것.** 그러면 그 순간부터 변경 파일이 점유 영역에 잡힌다. 선점
-단계에서 Status 를 `In Progress` 로 옮기는 것도 같은 구멍을 좁힌다.
+**남의 로컬 워크트리는 볼 수 없다.** 아직 PR 을 열지 않은 남의 작업은 이 도구에
+보이지 않는다. 위의 draft PR 규칙이 이 구멍을 메우는 유일한 방법이고, 도구가
+아니라 사람이 지켜야 한다.
 
 ## 라이선스
 

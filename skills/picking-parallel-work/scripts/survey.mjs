@@ -31,7 +31,6 @@ import {
     currentUser,
     ghJson,
     git,
-    isTeam,
     loadConfig,
     repoOwner,
     repoRoot,
@@ -413,7 +412,6 @@ function main() {
     const blocked = candidates.filter((c) => c.blockers.length > 0).sort((a, b) => a.number - b.number);
 
     const result = {
-        mode: isTeam(config) ? 'team' : 'solo',
         me,
         occupiedAreas: [...occupiedAreas],
         worktrees,
@@ -478,7 +476,7 @@ function cmp(a, b) {
 function report({me, worktrees, openPrs, occupiedAreas, ranked, blocked, warnings}, config) {
     const out = [];
 
-    out.push(`진행 중인 작업  [${isTeam(config) ? '팀' : '개인'} 모드]${me ? `  나: ${me}` : ''}`);
+    out.push(`진행 중인 작업${me ? `  나: ${me}` : ''}`);
     if (worktrees.length === 0 && openPrs.length === 0) {
         out.push('  (없음 — 겹칠 작업이 없다)');
     }

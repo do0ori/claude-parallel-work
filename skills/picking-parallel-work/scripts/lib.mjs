@@ -16,13 +16,6 @@ import path from 'node:path';
  * 때만 그걸 쓴다. 여러 개면 어느 것인지 사람이 정해야 한다.
  */
 export const DEFAULTS = {
-    /**
-     * "team" 또는 "solo".
-     *
-     * team 이 기본이다. 잘못 골랐을 때 team 쪽이 안전하다 — 확인이 하나 더 붙을
-     * 뿐이지만, 반대로 팀에서 solo 로 돌면 남의 작업을 덮어쓸 수 있다.
-     */
-    mode: 'team',
     projectNumber: null,
     priorityField: 'Priority',
     priorityOrder: ['P0', 'P1', 'P2'],
@@ -44,17 +37,8 @@ export const DEFAULTS = {
     // claimStatus: 모드에 맡기기 위해 일부러 비워 둔다
 };
 
-/** 팀 모드인가. 설정이 이상하면 안전한 쪽(팀)으로 본다. */
-export function isTeam(config) {
-    if (config.mode !== 'team' && config.mode !== 'solo') {
-        warnings.push(`mode 가 "${config.mode}" 다. "team" 또는 "solo" 여야 해서 team 으로 보고 진행한다.`);
-        return true;
-    }
-    return config.mode === 'team';
-}
-
 /**
- * 선점할 때 옮길 Status. 모드와 무관하다.
+ * 선점할 때 옮길 Status.
  *
  * 혼자 쓴다고 Status 를 생략하면 안 된다. 이 도구가 존재하는 이유가 세션을
  * 여럿 굴리는 것이고, 그러면 행위자도 여럿이다. Status 는 그 세션들이 공유하는

@@ -1,6 +1,6 @@
 ---
 name: picking-parallel-work
-description: Use when starting a new parallel Claude session on a repo — picks the next GitHub issue that does not collide with work already running in another git worktree, claims it, and hands back a launch command. Also use when a session needs to set up its worktree for an issue it was handed.
+description: Picks the next GitHub issue that does not collide with work already running in another git worktree, claims it, and starts a new parallel Claude session on it. Also sets up or adjusts its own configuration for a repository. Use whenever someone asks what to work on next, asks to pick up or start another task, asks for something that will not overlap with work already running, asks to spin up another session or worktree to work in parallel, hands a specific issue number to a fresh session to begin, or asks to configure/tune how work gets picked (priority order, which GitHub Project, per-area setup commands, whether new sessions open a window). Triggers in English include "what's next", "next task", "pick up another issue", "start another session in parallel", "give me something that won't conflict", "set up parallel work". Korean triggers include "다음 작업", "다음에 뭐 할까", "겹치지 않는 작업 가져와", "작업 하나 더 시작", "새 세션 띄워서 작업", "병렬로 하나 더", "이슈 하나 잡아서 시작해줘", "병렬 작업 설정해줘". Respond in the language the person used. Do not wait for the /next-task or /work-issue commands — those are shortcuts into this same skill.
 ---
 
 # 병렬 작업 고르기
@@ -16,24 +16,43 @@ description: Use when starting a new parallel Claude session on a repo — picks
 - **착수** (`/work-issue <번호>`): 새로 뜬 세션이 워크트리를 정돈하고 그 이슈에
   달라붙는다.
 
-## 모드
+혼자 세션을 여럿 띄우든 팀으로 나눠 쓰든 동작은 같다. 모드가 없다.
 
-저장소 루트 `.claude/parallel-work.json` 의 `mode` 가 `"team"`(기본) 또는
-`"solo"` 다. 조사 스크립트 출력 첫 줄에 어느 모드인지 찍히니, 안내를 고르기 전에
-그것부터 보라.
+혼자라고 선점이나 Status 를 생략하지 않는다. 이 도구를 쓰는 상황 자체가 세션을
+여럿 굴리는 상황이고, 그러면 혼자여도 행위자는 여럿이다. 담당자만으로는
+"잡아만 둔 것"과 "지금 붙어 있는 것"을 가르지 못하므로 Status 도 함께 옮긴다.
 
-| | team | solo |
-| --- | --- | --- |
-| draft PR 먼저 열라고 안내 | 한다 | 하지 않는다 |
-| 남이 담당인 이슈 | 후보에서 뺀다 | 해당 없음 |
+**사람이 쓴 언어로 답하라.** 이 문서가 한국어인 것은 규칙이 아니다.
 
-team 이 기본이다. 잘못 골랐을 때 team 쪽이 안전하다 — 확인이 하나 더 붙을
-뿐이지만, 반대로 팀에서 solo 로 돌면 남의 작업을 덮어쓸 수 있다.
+## 설정하기
 
-**Status 관리는 모드와 무관하게 한다.** 혼자여도 이 도구를 쓰는 상황 자체가
-세션을 여럿 굴리는 상황이고, 그러면 행위자도 여럿이다. Status 는 그 세션들이
-공유하는 유일한 신호다 — 담당자만으로는 "잡아만 둔 것"과 "지금 붙어 있는 것"을
-가르지 못한다.
+**설정 없이 먼저 써 보게 하라.** `.claude/parallel-work.json` 은 없어도 된다.
+Project 가 하나뿐이면 알아서 찾고, 영역은 `.github/labeler.yaml` 이나 최상위
+디렉터리에서 읽고, 나머지는 기본값으로 돈다. 설정부터 만들자고 먼저 권하지 마라.
+
+설정이 필요해지는 경우는 정해져 있다.
+
+| 증상 | 채울 것 |
+| --- | --- |
+| "Project 가 N 개라 정하지 못했다" 경고 | `projectNumber` |
+| Priority·Status 값 이름이 다른 저장소 | `priorityField` / `statusField` / `priorityOrder` / `statusOrder` / `excludeStatuses` |
+| 새 워크트리에서 빌드가 설치물 없이 실패 | `setup` |
+| 새 세션을 창까지 열어 시작하고 싶다 | `launch: "session"` |
+
+**사람에게 값을 묻지 마라. 저장소를 읽고 제안한 뒤 확인만 받아라.**
+
+```
+gh project list --owner <소유자> --format json
+gh project field-list <번호> --owner <소유자> --format json
+```
+
+`setup` 은 저장소를 보고 채운다 — 영역 디렉터리에 `package.json` 이 있으면
+`npm install --prefix <영역>`, `requirements.txt` 가 있으면
+`pip install -r <영역>/requirements.txt`, gradle 이면 첫 빌드가 알아서 받으므로
+비워 둔다.
+
+없는 파일을 만들 때는 필요한 키만 적어라. 기본값과 같은 값을 나열하면 나중에
+기본값이 바뀌어도 이 저장소만 옛날 값에 묶인다.
 
 ## 고르기
 
@@ -154,22 +173,40 @@ gh issue view <번호> --comments
 
 본문과 댓글 전부 읽어라. 설계 결정이 댓글에 남아 있는 경우가 많다.
 
-### 4. 평소 작업 흐름으로 넘어간다
+### 4. draft PR 을 먼저 연다
+
+작업을 **시작하면서** 연다. 다 만들고 나서가 아니다.
+
+```
+git commit --allow-empty -m "chore: <제목> 작업을 시작한다"
+git push -u origin <영역>/<슬러그>
+gh pr create --draft --title "<제목>" --body "Closes #<번호>"
+```
+
+이유는 이 도구가 무엇을 볼 수 있는지에 있다. 로컬 워크트리는 **내 머신에서만**
+보이고, 그마저 어느 이슈의 작업인지는 연결된 PR 이 있어야 안다. 열린 draft PR
+하나가 그 둘을 동시에 메운다 — 남에게도 보이고, 나중에 세션을 하나 더 띄우는
+나에게도 보인다.
+
+`Closes #<번호>` 를 꼭 넣어라. 이 도구는 본문의 `#N` 을 아무거나 줍지 않고
+GitHub 이 실제로 연결한 이슈만 본다. 저장소에 PR 템플릿이 있으면 그것을 따르되
+이 줄은 반드시 넣는다.
+
+### 5. 평소 작업 흐름으로 넘어간다
 
 여기서부터는 이 스킬의 일이 아니다. 저장소의 평소 개발 흐름을 따른다.
 
-### 5. 마무리
+### 6. 마무리
 
-PR 본문에 `Closes #<번호>` 를 넣어 이슈와 잇는다. 그래야 다음 `/next-task` 가
-이 작업을 진행 중으로 인식한다. 저장소에 PR 템플릿이 있으면 그것을 따른다.
+작업이 끝나면 draft 를 푼다.
 
-**team 모드라면 PR 을 마지막에 열지 말고, 작업을 시작하면서 draft 로 먼저
-열어라.** 남의 로컬 워크트리는 이 도구가 볼 수 없어서, 열린 PR 이 남에게 내
-점유를 보이는 유일한 창이다. 다 만들고 나서 열면 그동안 남이 같은 영역을 집는다.
+```
+gh pr ready
+```
 
 ## 이 스킬이 일부러 하지 않는 것
 
-- **세션을 대신 띄우지 않는다.** 위 4 절의 이유.
 - **워크트리를 직접 만들지 않는다.** `claude --worktree` 가 이미 한다.
 - **우선순위를 스스로 정하지 않는다.** Project 의 Priority 필드가 유일한
   출처다. 비어 있으면 채우자고 제안하되, 임의로 넣지 마라.
+- **겹치는 후보밖에 없을 때 임의로 고르지 않는다.** 사람에게 묻는다.

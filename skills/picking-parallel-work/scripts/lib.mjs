@@ -178,6 +178,35 @@ export function loadConfig(root) {
     }
 }
 
+/**
+ * PR 이 실제로 처리 중인 이슈.
+ *
+ * 1순위는 GitHub 이 스스로 연결한 closingIssuesReferences 다. 본문의 `#N` 을
+ * 전부 긁으면 안 된다 — 설명에 다른 이슈를 언급하거나 예시 출력을 붙여넣기만 해도
+ * 그 이슈들이 통째로 "진행 중"으로 잘못 제외된다.
+ *
+ * 본문의 닫기 키워드와 제목의 참조도 함께 본다.
+ *
+ * 제목을 보는 이유는 이슈를 쪼개 작업하는 흔한 방식 때문이다. "(#18 ①)" 처럼
+ * 3 부작의 1 부를 여는 PR 은 Closes 를 쓰면 안 되고, 그러면 GitHub 이 연결해 주지
+ * 않아 #18 이 후보에 그대로 남는다. 두 세션이 같은 이슈의 다른 조각을 동시에
+ * 하게 되는 자리다.
+ *
+ * 본문 전체에서 #N 을 긁지는 않는다. 설명에 다른 이슈를 언급하거나 예시 출력을
+ * 붙여넣기만 해도 무관한 이슈가 통째로 잠긴다. 제목은 사람이 다듬는 자리라
+ * 이슈 번호가 우연히 들어가지 않는다.
+ */
+export function closingIssues(pr) {
+    const nums = new Set();
+    for (const r of pr.closingIssuesReferences || []) {
+        if (typeof r.number === 'number') nums.add(r.number);
+    }
+    for (const m of String(pr.title || '').matchAll(/#(\d+)/g)) nums.add(Number(m[1]));
+    const closing = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/gi;
+    for (const m of String(pr.body || '').matchAll(closing)) nums.add(Number(m[1]));
+    return [...nums];
+}
+
 /** 저장소 소유자 로그인. */
 export function repoOwner() {
     return ghJson(['repo', 'view', '--json', 'owner,name'])?.owner?.login || null;

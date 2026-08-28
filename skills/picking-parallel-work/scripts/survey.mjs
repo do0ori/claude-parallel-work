@@ -28,6 +28,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import {
+    closingIssues,
     currentUser,
     findUncoveredLocalConfig,
     ghJson,
@@ -248,24 +249,6 @@ function defaultBranchRef() {
     }
 }
 
-/**
- * PR 이 실제로 처리 중인 이슈.
- *
- * 1순위는 GitHub 이 스스로 연결한 closingIssuesReferences 다. 본문의 `#N` 을
- * 전부 긁으면 안 된다 — 설명에 다른 이슈를 언급하거나 예시 출력을 붙여넣기만 해도
- * 그 이슈들이 통째로 "진행 중"으로 잘못 제외된다.
- *
- * 연결이 비어 있을 때만 본문에서 닫기 키워드가 붙은 참조를 찾는다.
- */
-function closingIssues(pr) {
-    const linked = (pr.closingIssuesReferences || []).map((r) => r.number).filter((n) => typeof n === 'number');
-    if (linked.length > 0) return [...new Set(linked)];
-
-    const nums = new Set();
-    const pattern = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/gi;
-    for (const m of String(pr.body || '').matchAll(pattern)) nums.add(Number(m[1]));
-    return [...nums];
-}
 
 // --- 본체 -------------------------------------------------------------------
 
@@ -290,7 +273,7 @@ function main() {
             '--limit',
             '200',
             '--json',
-            'number,title,labels,assignees,url',
+            'number,title,labels,assignees,url,parent,subIssues,blockedBy',
         ]) || [];
 
     const prs =
@@ -370,6 +353,9 @@ function main() {
     }
 
     // 후보 평가
+    const openNumbers = new Set(issues.map((i) => i.number));
+    const assignedNumbers = new Set(issues.filter((i) => i.assignees.length > 0).map((i) => i.number));
+
     const candidates = issues.map((issue) => {
         const labels = issue.labels.map((l) => l.name);
         // 라벨 이름을 그대로 비교하지 않는다 — normalizeArea 의 설명을 보라.
@@ -381,8 +367,18 @@ function main() {
         // 담당자를 모르면(me 를 못 알아냈으면) 남의 것으로 보고 보수적으로 뺀다
         const minePending = Boolean(me) && assignees.includes(me) && others.length === 0;
 
+        const subIssues = (issue.subIssues?.nodes || []).map((n) => n.number).filter(Number.isInteger);
+        const blockedBy = (issue.blockedBy?.nodes || []).map((n) => n.number).filter(Number.isInteger);
+
+        // 막고 있는 이슈가 아직 열려 있으면 이건 지금 할 수 있는 일이 아니다.
+        const openBlockers = blockedBy.filter((n) => openNumbers.has(n));
+        // 하위 이슈를 누가 하고 있으면 부모를 통째로 집어서는 안 된다.
+        const busySubs = subIssues.filter((n) => inFlight.has(n) || assignedNumbers.has(n));
+
         const blockers = [];
         if (others.length > 0) blockers.push(`assigned to someone else (${others.join(', ')})`);
+        if (openBlockers.length > 0) blockers.push(`blocked by #${openBlockers.join(', #')}`);
+        if (busySubs.length > 0) blockers.push(`a sub-issue is already in progress (#${busySubs.join(', #')})`);
         if (config.excludeStatuses.includes(meta.status)) blockers.push(`${config.statusField} = ${meta.status}`);
         if (inFlight.has(issue.number)) blockers.push('referenced by an in-flight worktree or PR');
 

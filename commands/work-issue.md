@@ -1,14 +1,14 @@
 ---
-description: 새 워크트리 세션에서 지정한 이슈에 착수한다 — 브랜치 정리, 환경 준비, 이슈 읽기
-argument-hint: "<이슈 번호>"
+description: Start work on a given issue in this worktree — fix the branch name, set up the environment, read the issue, open a draft PR
+argument-hint: "<issue-number>"
 ---
 
-`picking-parallel-work` 스킬의 **착수** 절차를 수행한다.
+Run the **starting work** flow of the `picking-parallel-work` skill.
 
-이슈 번호: $ARGUMENTS
+Issue number: $ARGUMENTS
 
-번호가 없으면 묻지 말고 멈춰라. 이 커맨드는 어떤 이슈를 할지 이미 정해진
-상태에서 쓰는 것이고, 여기서 임의로 고르면 `/next-task` 의 겹침 판정을
-건너뛰게 된다.
+If no number was given, stop and say so rather than choosing one. This command is
+for an issue that has already been decided on; picking one here would skip the
+overlap check that `/next-task` performs.
 
-절차를 마치면 저장소의 평소 개발 흐름으로 넘어간다.
+When the flow is done, continue with the repository's normal development workflow.

@@ -1,26 +1,19 @@
 ---
-description: 진행 중인 워크트리와 겹치지 않는 다음 이슈를 골라 선점하고, 새 세션을 띄울 명령을 준다
-argument-hint: "[--dry-run] [영역]"
+description: Pick the next issue that will not collide with work already running, claim it, and start a session on it
+argument-hint: "[--dry-run] [area]"
 ---
 
-`picking-parallel-work` 스킬의 **고르기** 절차를 수행한다.
+Run the **picking** flow of the `picking-parallel-work` skill.
 
-인자: $ARGUMENTS
+Arguments: $ARGUMENTS
 
-- 인자가 없으면 전체 후보에서 1 순위를 고른다.
-- 영역 이름이 주어지면 그 영역 안에서만 고른다.
-- `--dry-run` 이면 순위와 근거만 보여주고 **선점하지 않는다.**
+- No arguments — consider every candidate.
+- An area name — only consider issues in that area.
+- `--dry-run` — show the ranking and the reasoning, and **claim nothing.**
 
-보고는 짧게, 이 모양으로 한다.
+Do not decide alone. Present the top candidates with their reasoning as a choice,
+mark the first one as recommended, and carry whatever gets chosen all the way
+through: claim it, open the new session, and hand it the issue.
 
-```
-선택: #<번호> <제목>
-  근거: <Priority> · <라벨> · <영역>
-  겹침: <있으면 무엇과 왜, 없으면 "없음">
-  선점: assignee=<나> ✓
-
-다음 후보: #<번호> (<한 줄 사유>) · #<번호> (<한 줄 사유>)
-
-새 터미널에 붙여넣으세요:
-  claude --worktree <영역>/<슬러그> "/work-issue <번호>"
-```
+Skip the question only when the person already named an issue, or told you to just
+pick. If every candidate overlaps with work in flight, show the list and stop.

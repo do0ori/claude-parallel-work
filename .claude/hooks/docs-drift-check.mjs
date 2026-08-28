@@ -59,6 +59,13 @@ const RULES = [
         ],
     },
     {
+        pattern: /^skills\/picking-parallel-work\/SKILL\.md$/,
+        docs: [
+            ['commands/next-task.md', 'what the command says it does, and when it asks vs decides'],
+            ['commands/work-issue.md', 'what the command says it does'],
+        ],
+    },
+    {
         pattern: /^commands\/.*\.md$/,
         docs: [
             ['README.md', '"Usage"'],

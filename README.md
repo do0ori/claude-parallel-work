@@ -68,8 +68,19 @@ like `frontend`, `backend`, or `ai`.
 A candidate whose area is already occupied gets **demoted, not excluded.** If every
 candidate overlaps, the tool says so and asks rather than picking blind.
 
-Hard exclusions are separate: someone else is assigned, the Project status is in
-the excluded list, or an in-flight worktree or PR is already linked to the issue.
+Hard exclusions are separate:
+
+- someone else is assigned
+- the Project status is in the excluded list
+- an in-flight worktree or PR is already linked to the issue
+- it is blocked by an issue that is still open (`blockedBy`)
+- one of its sub-issues is already being worked on (`subIssues`)
+
+The last two come straight from GitHub's issue relationships. A PR that works part
+of an issue without closing it counts too: a title like `refactor: tokens (#18 ①)`
+links the PR to #18, because splitting an issue across several PRs is normal and the
+closing keyword would be wrong there. Titles are curated, so an issue number in one
+is deliberate — unlike a number that happens to appear in a PR body.
 
 An issue assigned to *you* is not excluded — it's marked `already claimed by you`
 and sorted to the top, so work you reserved earlier gets finished first.

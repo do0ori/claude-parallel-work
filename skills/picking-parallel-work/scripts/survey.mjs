@@ -317,7 +317,9 @@ function main() {
         let areaSource = '변경 파일';
         if (areas.size === 0 && wt.branch) {
             const prefix = wt.branch.split('/')[0];
-            const guess = areaNames.find((a) => a.toLowerCase().includes(prefix.toLowerCase()));
+            // 부분 문자열로 맞추면 안 된다. 브랜치 접두사 "ai" 가 "maintenance" 같은
+            // 무관한 영역 이름에 걸린다. 정규화한 이름끼리 정확히 같을 때만 인정한다.
+            const guess = areaByNorm.get(normalizeArea(prefix));
             if (guess) {
                 areas = new Set([guess]);
                 areaSource = '브랜치 이름 추정';

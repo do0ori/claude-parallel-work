@@ -24,6 +24,11 @@
 | 스킬이 걸리는 조건 | `SKILL.md` frontmatter `description` |
 | 무엇이든 | `.claude-plugin/plugin.json` 의 `version` |
 
+이 표는 `.claude/hooks/docs-drift-check.mjs` 가 커밋 직전에 대조한다. 걸렸을 때는
+문서를 고쳐 함께 `git add` 하거나, 읽어보니 고칠 게 없으면
+`node .claude/hooks/docs-drift-check.mjs --ack` 후 다시 커밋한다. 버전 누락은
+`--ack` 로 넘길 수 없다 — 판단이 아니라 사실이기 때문이다.
+
 **빠져서 틀리는 경우를 조심하라.** 설정 항목을 없애거나 순위 기준을 하나 더하면,
 남은 문장은 여전히 읽히지만 이제 틀린 말이다. 문구가 겹치는 곳만 고치지 말고,
 그 동작을 설명하는 절을 다시 읽어라. 실제로 새어나간 것이 전부 이런 종류였다.

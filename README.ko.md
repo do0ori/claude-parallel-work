@@ -27,12 +27,14 @@ claude plugin install parallel-work@do0ori
 주 체크아웃에서:
 
 ```
-/next-task
+/parallel-work:next-task
 ```
 
-**커맨드를 외울 필요는 없다.** 그냥 말해도 된다 — "다음 뭐 할까", "겹치지 않는
+플러그인 커맨드는 플러그인 이름으로 네임스페이스된다. 짧은 `/next-task` 는 존재하지
+않는 이름이다. 물론 **어느 쪽도 외울 필요는 없다.** 그냥 말해도 된다 — "다음 뭐 할까", "겹치지 않는
 작업 하나 가져와", "새 세션 띄워서 하나 더 시작하자" 같은 말에 알아서 걸린다.
-`/next-task` 와 `/work-issue` 는 같은 스킬로 들어가는 지름길일 뿐이다.
+`/parallel-work:next-task` 와 `/parallel-work:work-issue` 는 같은 스킬로 들어가는
+지름길일 뿐이다.
 
 진행 중인 워크트리를 조사해 겹치지 않는 이슈를 고르고, 담당자로 자신을 걸고,
 새 세션을 연다.
@@ -44,13 +46,13 @@ claude plugin install parallel-work@do0ori
   선점: assignee=do0ori ✓
 
 새 터미널에 붙여넣으세요:
-  claude --worktree frontend/splash-safe-area "/work-issue 29"
+  claude --worktree frontend/splash-safe-area "/parallel-work:work-issue 29"
 ```
 
-새 터미널에서 그 명령을 실행하면 워크트리가 생기고, 그 세션이 `/work-issue 29`
+새 터미널에서 그 명령을 실행하면 워크트리가 생기고, 그 세션이 `/parallel-work:work-issue 29`
 로 브랜치 이름을 정돈하고 환경을 갖춘 뒤 이슈를 읽고 착수한다.
 
-`/next-task --dry-run` 은 순위와 근거만 보여주고 선점하지 않는다.
+`/parallel-work:next-task --dry-run` 은 순위와 근거만 보여주고 선점하지 않는다.
 
 ## 어떻게 겹침을 판단하나
 
@@ -210,7 +212,7 @@ node <플러그인>/skills/picking-parallel-work/scripts/set-status.mjs <이슈�
 | `claimStatus` | 선점할 때 옮길 Status. `null` 이면 옮기지 않는다 |
 | `launch` | `"print"`(기본) 또는 `"session"`. 위 표를 보라 |
 | `terminalCommand` | `session` 에서 창을 여는 명령을 직접 지정 |
-| `setup` | 영역별 환경 준비 명령. `/work-issue` 가 **건드릴 영역의 것만** 실행한다 |
+| `setup` | 영역별 환경 준비 명령. `/parallel-work:work-issue` 가 **건드릴 영역의 것만** 실행한다 |
 
 `statusOrder` 의 `""` 는 Project 에 올라 있지 않거나 Status 가 비어 있는 이슈를
 뜻한다. 위 예시는 "Todo 가 먼저, 그다음 미분류, Backlog 는 맨 뒤"로 읽는다.

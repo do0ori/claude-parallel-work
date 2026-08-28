@@ -33,13 +33,14 @@ claude plugin install parallel-work@do0ori
 From your main checkout:
 
 ```
-/next-task
+/parallel-work:next-task
 ```
 
-You don't have to remember the command. Ask in plain language — *"what's next?"*,
+Plugin commands are namespaced by the plugin name — the bare `/next-task` is not a
+real command. You don't have to remember either form, though. Ask in plain language — *"what's next?"*,
 *"give me something that won't conflict"*, *"start another session in parallel"* —
-and the skill picks it up. `/next-task` and `/work-issue` are just shortcuts into
-it.
+and the skill picks it up. `/parallel-work:next-task` and
+`/parallel-work:work-issue` are just shortcuts into it.
 
 ```
 Picked: #29 SplashScreen renders outside SafeAreaProvider
@@ -53,7 +54,7 @@ Opened a new session — worktree frontend/splash-safe-area, issue #29
 The new session renames its branch to your repo's convention, installs what that
 area needs, reads the issue with its comments, opens a draft PR, and starts work.
 
-`/next-task --dry-run` shows the ranking and the reasoning without claiming
+`/parallel-work:next-task --dry-run` shows the ranking and the reasoning without claiming
 anything.
 
 ## How it decides

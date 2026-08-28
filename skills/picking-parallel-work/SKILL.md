@@ -1,6 +1,6 @@
 ---
 name: picking-parallel-work
-description: Picks the next GitHub issue that does not collide with work already running in another git worktree, claims it, and starts a new parallel Claude session on it. Also sets up or adjusts its own configuration for a repository. Use whenever someone asks what to work on next, asks to pick up or start another task, asks for something that will not overlap with work already running, asks to spin up another session or worktree to work in parallel, hands a specific issue number to a fresh session to begin, or asks to configure/tune how work gets picked (priority order, which GitHub Project, per-area setup commands, whether new sessions open a window). Triggers in English include "what's next", "next task", "pick up another issue", "start another session in parallel", "give me something that won't conflict", "set up parallel work". Korean triggers include "다음 작업", "다음에 뭐 할까", "겹치지 않는 작업 가져와", "작업 하나 더 시작", "새 세션 띄워서 작업", "병렬로 하나 더", "이슈 하나 잡아서 시작해줘", "병렬 작업 설정해줘". Respond in the language the person used. Do not wait for the /next-task or /work-issue commands — those are shortcuts into this same skill.
+description: Picks the next GitHub issue that does not collide with work already running in another git worktree, claims it, and starts a new parallel Claude session on it. Also sets up or adjusts its own configuration for a repository. Use whenever someone asks what to work on next, asks to pick up or start another task, asks for something that will not overlap with work already running, asks to spin up another session or worktree to work in parallel, hands a specific issue number to a fresh session to begin, or asks to configure/tune how work gets picked (priority order, which GitHub Project, per-area setup commands, whether new sessions open a window). Triggers in English include "what's next", "next task", "pick up another issue", "start another session in parallel", "give me something that won't conflict", "set up parallel work". Korean triggers include "다음 작업", "다음에 뭐 할까", "겹치지 않는 작업 가져와", "작업 하나 더 시작", "새 세션 띄워서 작업", "병렬로 하나 더", "이슈 하나 잡아서 시작해줘", "병렬 작업 설정해줘". Respond in the language the person used. Do not wait for the /parallel-work:next-task or /parallel-work:work-issue commands — those are shortcuts into this same skill.
 ---
 
 # 병렬 작업 고르기
@@ -11,9 +11,9 @@ description: Picks the next GitHub issue that does not collide with work already
 
 두 갈래로 쓰인다.
 
-- **고르기** (`/next-task`): 진행 중인 작업을 조사해 겹치지 않는 이슈를 고르고,
+- **고르기** (`/parallel-work:next-task`): 진행 중인 작업을 조사해 겹치지 않는 이슈를 고르고,
   선점한 뒤, 새 세션을 띄울 명령을 출력한다.
-- **착수** (`/work-issue <번호>`): 새로 뜬 세션이 워크트리를 정돈하고 그 이슈에
+- **착수** (`/parallel-work:work-issue <번호>`): 새로 뜬 세션이 워크트리를 정돈하고 그 이슈에
   달라붙는다.
 
 혼자 세션을 여럿 띄우든 팀으로 나눠 쓰든 동작은 같다. 모드가 없다.
@@ -168,7 +168,10 @@ node "<이 스킬 디렉터리>/scripts/launch.mjs" <영역>/<슬러그> <번호
 
 ## 착수
 
-새로 뜬 세션이 `/work-issue <번호>` 로 여기 들어온다.
+새로 뜬 세션이 `/parallel-work:work-issue <번호>` 로 여기 들어온다.
+
+커맨드 이름의 `parallel-work:` 접두사를 빼면 안 된다. 플러그인 커맨드는
+네임스페이스되어 있어서, 짧은 이름은 존재하지 않는 커맨드다.
 
 ### 1. 브랜치 이름을 고친다
 

@@ -39,6 +39,16 @@ import {findUncoveredLocalConfig, loadConfig, repoRoot, WORKTREE_INCLUDE} from '
  */
 const SAFE_NAME = /^[A-Za-z0-9._/-]{1,64}$/;
 
+/**
+ * 새 세션에 넘길 커맨드.
+ *
+ * 플러그인이 제공하는 커맨드는 플러그인 이름으로 네임스페이스된다. 짧은
+ * `/work-issue` 는 존재하지 않는 이름이라 세션이 "Unknown command" 로 끝나고,
+ * 워크트리는 만들어졌으니 겉보기에는 성공한 것처럼 보인다. 실제로 그렇게 두 번
+ * 죽었다. 이 접두사는 .claude-plugin/plugin.json 의 name 에서 온다.
+ */
+const WORK_COMMAND = '/parallel-work:work-issue';
+
 function parseArgs(argv) {
     const positional = argv.filter((a) => !a.startsWith('--'));
     const [name, rawIssue] = positional;
@@ -97,7 +107,7 @@ function has(command) {
 
 /** 붙여넣기 좋은 한 줄. */
 function printableCommand(name, issue) {
-    return `claude --worktree ${name} "/work-issue ${issue}"`;
+    return `claude --worktree ${name} "${WORK_COMMAND} ${issue}"`;
 }
 
 /**
@@ -117,14 +127,14 @@ function writeLaunchScript(root, name, issue) {
               '@echo off',
               ...vars.map((k) => `set "${k}="`),
               `cd /d "${root}" || exit /b 1`,
-              `claude --worktree "${name}" "/work-issue ${issue}"`,
+              `claude --worktree "${name}" "${WORK_COMMAND} ${issue}"`,
               '',
           ].join('\r\n')
         : [
               '#!/bin/sh',
               ...vars.map((k) => `unset ${k}`),
               `cd '${root.replace(/'/g, `'\\''`)}' || exit 1`,
-              `exec claude --worktree '${name}' '/work-issue ${issue}'`,
+              `exec claude --worktree '${name}' '${WORK_COMMAND} ${issue}'`,
               '',
           ].join('\n');
 

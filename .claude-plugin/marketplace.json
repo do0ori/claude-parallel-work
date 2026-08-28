@@ -1,0 +1,11 @@
+{
+    "name": "do0ori",
+    "owner": {"name": "do0ori"},
+    "plugins": [
+        {
+            "name": "parallel-work",
+            "source": "./",
+            "description": "겹치지 않는 다음 GitHub 이슈를 골라 병렬 Claude 세션을 시작한다."
+        }
+    ]
+}

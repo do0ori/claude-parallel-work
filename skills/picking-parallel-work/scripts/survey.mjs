@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 병렬 작업 고르기 — 지금 In flight과 겹치지 않는 다음 이슈를 찾아 순위를 매긴다.
+ * 병렬 작업 고르기 — 지금 진행 중인 작업과 겹치지 않는 다음 이슈를 찾아 순위를 매긴다.
  *
  * 여러 Claude 세션을 워크트리마다 하나씩 띄워 병렬로 굴릴 때, 사람이 매번
  * "지금 뭐가 돌고 있더라"를 기억해서 겹치지 않는 일감을 고르는 건 오래 못 간다.
@@ -8,7 +8,7 @@
  * 선점은 판단이 끝난 뒤 스킬이 별도로 수행한다.
  *
  * 조사하는 것
- *   1. 진행 중인 워크트리와 각각이 점유한 영역 (changed files → 영역, 없으면 브랜치 접두사)
+ *   1. 진행 중인 워크트리와 각각이 점유한 영역 (변경 파일 → 영역, 없으면 브랜치 접두사)
  *   2. 열린 PR 과 그 PR 이 참조하는 이슈
  *   3. 열린 이슈 + GitHub Project 의 Priority / Status
  *
@@ -30,6 +30,9 @@ import path from 'node:path';
 import {
     closingIssues,
     currentUser,
+    defaultBranchRef,
+    isFinishedWorktree,
+    listWorktrees,
     findUncoveredLocalConfig,
     ghJson,
     git,
@@ -41,8 +44,6 @@ import {
     uniqueWarnings,
     warnings,
 } from './lib.mjs';
-
-
 
 const wantJson = process.argv.includes('--json');
 
@@ -199,24 +200,8 @@ function areaLookup(areaNames) {
     return byNorm;
 }
 
-// --- In flight ----------------------------------------------------------
+// --- 진행 중인 작업 --------------------------------------------------------
 
-/** git worktree list --porcelain 을 파싱한다. 첫 항목이 주 체크아웃이다. */
-function listWorktrees() {
-    const entries = [];
-    let cur = null;
-    for (const line of git(['worktree', 'list', '--porcelain']).split(/\r?\n/)) {
-        if (line.startsWith('worktree ')) {
-            cur = {path: line.slice('worktree '.length), branch: null, locked: false};
-            entries.push(cur);
-        } else if (line.startsWith('branch ') && cur) {
-            cur.branch = line.slice('branch refs/heads/'.length);
-        } else if (line === 'locked' && cur) {
-            cur.locked = true;
-        }
-    }
-    return entries.slice(1);
-}
 
 /** 워크트리가 지금까지 건드린 파일. 커밋된 것과 아직 커밋 안 한 것 모두. */
 function changedPathsIn(worktreePath, defaultBranch) {
@@ -238,17 +223,6 @@ function changedPathsIn(worktreePath, defaultBranch) {
     }
     return [...paths];
 }
-
-/** origin 의 기본 브랜치. 없으면 main 으로 가정한다. */
-function defaultBranchRef() {
-    try {
-        return git(['rev-parse', '--abbrev-ref', 'origin/HEAD']);
-    } catch {
-        warnings.push('Could not read origin/HEAD, assuming origin/main is the default branch');
-        return 'origin/main';
-    }
-}
-
 
 // --- 본체 -------------------------------------------------------------------
 
@@ -316,6 +290,7 @@ function main() {
             path: wt.path,
             branch: wt.branch,
             locked: wt.locked,
+            finished: isFinishedWorktree(wt, defaultBranch),
             changedCount: paths.length,
             areas: [...areas],
             areaSource,
@@ -324,7 +299,7 @@ function main() {
     });
 
     // 남의 워크트리는 보이지 않는다. `git worktree list` 는 내 머신만 안다.
-    // 열린 PR 의 changed files이 팀의 진행 중 작업을 보는 유일한 창이다.
+    // 열린 PR 의 변경 파일이 팀의 진행 중 작업을 보는 유일한 창이다.
     const openPrs = prs.map((pr) => ({
         number: pr.number,
         branch: pr.headRefName,
@@ -335,7 +310,8 @@ function main() {
     }));
 
     const occupiedAreas = new Set();
-    for (const wt of worktrees) for (const a of wt.areas) occupiedAreas.add(a);
+    // 끝난 워크트리는 점유로 세지 않는다. 세면 그 영역이 영원히 막힌다.
+    for (const wt of worktrees) if (!wt.finished) for (const a of wt.areas) occupiedAreas.add(a);
     for (const pr of openPrs) for (const a of pr.areas) occupiedAreas.add(a);
 
     const inFlight = new Set();
@@ -344,7 +320,13 @@ function main() {
 
     // 특정 못한 워크트리는 조용히 넘기지 않는다 — 사람이 봐야 할 불확실성이다
     for (const wt of worktrees) {
-        if (wt.issues.length === 0) {
+        if (wt.finished) {
+            warnings.push(
+                `Worktree ${wt.branch} is finished — its commits are all in ${defaultBranch} and nothing is left uncommitted. ` +
+                    `Remove it with cleanup.mjs so it stops counting as work in flight.`
+            );
+        }
+        if (wt.issues.length === 0 && !wt.finished) {
             warnings.push(
                 `Could not tell which issue worktree ${wt.branch || wt.path} belongs to (no open PR). ` +
                     `Only its areas (${wt.areas.join(', ') || 'unknown'}) were counted as occupied.`

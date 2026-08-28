@@ -51,6 +51,14 @@ const RULES = [
         ],
     },
     {
+        pattern: /^skills\/picking-parallel-work\/scripts\/cleanup\.mjs$/,
+        docs: [
+            ['skills/picking-parallel-work/SKILL.md', 'step 1-1, 끝난 워크트리 정리'],
+            ['README.md', '"Cleaning up what it created"'],
+            ['README.ko.md', '"만든 것을 치운다"'],
+        ],
+    },
+    {
         pattern: /^skills\/picking-parallel-work\/scripts\/set-status\.mjs$/,
         docs: [
             ['skills/picking-parallel-work/SKILL.md', 'step 6, 마무리'],

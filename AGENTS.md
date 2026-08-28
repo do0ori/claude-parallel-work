@@ -21,6 +21,7 @@
 | 설정 기본값 (`DEFAULTS`) | 양쪽 README 의 설정 표와 예시 JSON, `SKILL.md` 설정하기 |
 | 선점 절차 (`claim.mjs`) | `SKILL.md` 선점, 양쪽 README 의 Claiming |
 | Status 이동 (`set-status.mjs`) | `SKILL.md` 마무리, 양쪽 README 의 머지 후 절 |
+| 워크트리 정리 (`cleanup.mjs`) | `SKILL.md` 1-1 절, 양쪽 README 의 정리 절 |
 | 새 세션 여는 방식 (`launch.mjs`) | `SKILL.md` 4 절, 양쪽 README |
 | 스킬이 걸리는 조건 | `SKILL.md` frontmatter `description` |
 | 무엇이든 | `.claude-plugin/plugin.json` 의 `version` |

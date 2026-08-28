@@ -196,6 +196,31 @@ This is not just tidiness. `In Progress` is one of the hard exclusions, so an is
 left in that state after its PR merged never comes back as a candidate — and if only
 part of it was done, nobody can pick up the rest.
 
+## Cleaning up what it created
+
+A worktree whose work has landed is worse than clutter. The survey reads
+`git worktree list` as "work in flight", so a finished worktree keeps occupying its
+area forever — one leftover `frontend` worktree quietly demotes every frontend issue
+from then on. And because its commits are already in the default branch, no changed
+files show up, so the area comes from the branch-name guess and the mistake is silent.
+
+```bash
+node <plugin>/skills/picking-parallel-work/scripts/cleanup.mjs          # what it would remove
+node <plugin>/skills/picking-parallel-work/scripts/cleanup.mjs --apply  # remove it
+```
+
+It removes **only worktrees this plugin created, and their branches** — worktree,
+local branch, and the remote branch if it is still there. Other merged branches in
+your repository are not its business.
+
+It skips a worktree that is locked (a session may still be running), one whose
+commits are not all in the default branch, and one with uncommitted or untracked
+files. It prints what it left alone and why.
+
+Run it from the main checkout. A session cannot remove the worktree it is standing
+in, which is why cleanup belongs to the next pick rather than the end of the last
+one.
+
 ## Configuration
 
 **Try it with no configuration first.** `.claude/parallel-work.json` is optional. If

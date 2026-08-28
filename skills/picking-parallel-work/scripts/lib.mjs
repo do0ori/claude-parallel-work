@@ -273,6 +273,56 @@ export function setProjectStatus(issueNumber, config, wanted) {
     return edited ? wanted : null;
 }
 
+/** git worktree list --porcelain 을 파싱한다. 첫 항목이 주 체크아웃이다. */
+export function listWorktrees() {
+    const entries = [];
+    let cur = null;
+    for (const line of git(['worktree', 'list', '--porcelain']).split(/\r?\n/)) {
+        if (line.startsWith('worktree ')) {
+            cur = {path: line.slice('worktree '.length), branch: null, locked: false};
+            entries.push(cur);
+        } else if (line.startsWith('branch ') && cur) {
+            cur.branch = line.slice('branch refs/heads/'.length);
+        } else if (line === 'locked' && cur) {
+            cur.locked = true;
+        }
+    }
+    return entries.slice(1);
+}
+
+/** origin 의 기본 브랜치. 없으면 main 으로 가정한다. */
+export function defaultBranchRef() {
+    try {
+        return git(['rev-parse', '--abbrev-ref', 'origin/HEAD']);
+    } catch {
+        warnings.push('Could not read origin/HEAD, assuming origin/main is the default branch');
+        return 'origin/main';
+    }
+}
+
+/**
+ * 이 워크트리는 할 일이 끝났는가.
+ *
+ * 끝난 워크트리를 남겨두면 조사할 때 계속 "진행 중" 으로 잡히고, 그 영역을
+ * 영원히 점유한다. 머지가 끝난 frontend 워크트리 하나 때문에 이후 모든 frontend
+ * 이슈가 계속 감점되는 식이다. 커밋이 다 들어갔으니 변경 파일도 안 나와서
+ * 브랜치 이름 추정으로 넘어가고, 그래서 조용히 틀린다.
+ *
+ * 두 조건을 모두 만족해야 끝난 것으로 본다.
+ *   - 커밋이 전부 기본 브랜치에 들어갔다
+ *   - 남은 변경도, 추적 안 되는 파일도 없다
+ */
+export function isFinishedWorktree(wt, defaultBranch) {
+    if (!wt.branch) return false;
+    try {
+        if (git(['-C', wt.path, 'status', '--porcelain']).trim() !== '') return false;
+        return git(['-C', wt.path, 'log', '--oneline', `${defaultBranch}..HEAD`]).trim() === '';
+    } catch {
+        // 읽을 수 없는 워크트리는 판단하지 않는다. 지우는 쪽으로 기울면 안 된다.
+        return false;
+    }
+}
+
 /** 저장소 소유자 로그인. */
 export function repoOwner() {
     return ghJson(['repo', 'view', '--json', 'owner,name'])?.owner?.login || null;

@@ -354,13 +354,16 @@ function main() {
 
         // 막고 있는 이슈가 아직 열려 있으면 이건 지금 할 수 있는 일이 아니다.
         const openBlockers = blockedBy.filter((n) => openNumbers.has(n));
-        // 하위 이슈를 누가 하고 있으면 부모를 통째로 집어서는 안 된다.
-        const busySubs = subIssues.filter((n) => inFlight.has(n) || assignedNumbers.has(n));
+        // 쪼개진 이슈의 부모는 작업 단위가 아니다. 열린 하위 이슈가 하나라도 있으면
+        // 부모 대신 그것을 집어야 한다. 부모가 자기 자식보다 먼저 제안되는 일도
+        // 막는다 — 이슈 번호는 부모가 항상 작다.
+        const openSubs = subIssues.filter((n) => openNumbers.has(n));
 
         const blockers = [];
         if (others.length > 0) blockers.push(`assigned to someone else (${others.join(', ')})`);
         if (openBlockers.length > 0) blockers.push(`blocked by #${openBlockers.join(', #')}`);
-        if (busySubs.length > 0) blockers.push(`a sub-issue is already in progress (#${busySubs.join(', #')})`);
+        if (openSubs.length > 0)
+            blockers.push(`split into sub-issues still open (#${openSubs.join(', #')}) — pick one of those`);
         if (config.excludeStatuses.includes(meta.status)) blockers.push(`${config.statusField} = ${meta.status}`);
         if (inFlight.has(issue.number)) blockers.push('referenced by an in-flight worktree or PR');
 

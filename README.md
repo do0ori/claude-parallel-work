@@ -77,7 +77,7 @@ Hard exclusions are separate:
 - the Project status is in the excluded list
 - an in-flight worktree or PR is already linked to the issue
 - it is blocked by an issue that is still open (`blockedBy`)
-- one of its sub-issues is already being worked on (`subIssues`)
+- it was split into sub-issues and some are still open (`subIssues`)
 
 The last two come straight from GitHub's issue relationships. A PR that works part
 of an issue without closing it counts too: a title like `refactor: tokens (#18 ①)`
@@ -220,9 +220,11 @@ It skips a worktree that is locked (a session may still be running), one whose
 commits are not all in the default branch, and one with uncommitted or untracked
 files. It prints what it left alone and why.
 
-Run it from the main checkout. A session cannot remove the worktree it is standing
-in, which is why cleanup belongs to the next pick rather than the end of the last
-one.
+**The session that did the work removes its own worktree**, with the `ExitWorktree`
+tool, as the last step of finishing. Cleanup here is the backstop for when that did
+not happen — the session was killed, or you chose to keep the worktree at exit.
+
+Run it from the main checkout: a session cannot remove the worktree it is standing in.
 
 ## Configuration
 

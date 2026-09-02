@@ -238,6 +238,7 @@ You need config when:
 | Symptom | Set |
 | --- | --- |
 | Warning that several Projects were found | `projectNumber` |
+| Warning that no Project was found under that owner, but you have one | `projectOwner` |
 | Your Priority/Status values are named differently | `priorityField` / `statusField` / `priorityOrder` / `statusOrder` |
 | A fresh worktree fails to build for lack of dependencies | `setup` |
 | You want new sessions to open their own window | `launch` |
@@ -248,6 +249,7 @@ this repo"* and it inspects the repository, proposes values, and asks you to con
 ```json
 {
     "projectNumber": 1,
+    "projectOwner": "my-org",
     "priorityField": "Priority",
     "priorityOrder": ["P0", "P1", "P2"],
     "statusField": "Status",
@@ -267,6 +269,7 @@ this repo"* and it inspects the repository, proposes values, and asks you to con
 | Key | Meaning |
 | --- | --- |
 | `projectNumber` | GitHub Project number. Omit it and a single Project is found automatically |
+| `projectOwner` | Who owns the Project. Defaults to the repository owner — set it when the board lives under a different user or org |
 | `priorityField` / `statusField` | Field names on the Project |
 | `priorityOrder` / `statusOrder` | Earlier sorts first. `""` means the value is empty |
 | `excludeStatuses` | Issues in these statuses are dropped from the candidates |

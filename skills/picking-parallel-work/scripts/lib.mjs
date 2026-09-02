@@ -12,11 +12,20 @@ import path from 'node:path';
 /**
  * 설정하지 않았을 때의 기본값.
  *
- * projectNumber 가 null 이면 저장소 소유자의 Project 를 찾아보고, 정확히 하나일
+ * projectNumber 가 null 이면 projectOwner 의 Project 를 찾아보고, 정확히 하나일
  * 때만 그걸 쓴다. 여러 개면 어느 것인지 사람이 정해야 한다.
  */
 export const DEFAULTS = {
     projectNumber: null,
+    /**
+     * Project 를 어느 소유자에서 찾을지. null 이면 저장소 소유자.
+     *
+     * 저장소와 Project 의 소유자는 다를 수 있다 — 저장소는 조직에 있는데 보드는
+     * 개인 계정에 있거나, 저장소가 남의 개인 계정에 있어 그 아래에는 Project 를
+     * 만들 권한이 없거나. Projects v2 는 소유자를 옮길 수 없어서(복사만 된다)
+     * 이 어긋남은 대개 고칠 수 없다. 그래서 설정으로 받는다.
+     */
+    projectOwner: null,
     priorityField: 'Priority',
     priorityOrder: ['P0', 'P1', 'P2'],
     statusField: 'Status',
@@ -215,7 +224,7 @@ export function closingIssues(pr) {
  * 멈출 이유가 없다.
  */
 export function setProjectStatus(issueNumber, config, wanted) {
-    const owner = repoOwner();
+    const owner = projectOwner(config);
     const projectNumber = resolveProjectNumber(owner, config);
     if (!owner || projectNumber == null) return null;
 
@@ -328,13 +337,24 @@ export function repoOwner() {
     return ghJson(['repo', 'view', '--json', 'owner,name'])?.owner?.login || null;
 }
 
+/**
+ * Project 를 찾을 소유자. 설정에 있으면 그것, 없으면 저장소 소유자.
+ *
+ * `gh project` 는 전부 `--owner` 를 요구하고, 그 소유자가 저장소 소유자와 늘
+ * 같지는 않다(DEFAULTS.projectOwner 주석 참고). 저장소 소유자를 그대로 쓰면
+ * 어긋난 저장소에서는 Project 를 아예 못 찾아 Priority·Status 가 조용히 빠진다.
+ */
+export function projectOwner(config) {
+    return config?.projectOwner || repoOwner();
+}
+
 /** 지금 gh 로 인증된 사용자. */
 export function currentUser() {
     return ghText(['api', 'user', '--jq', '.login']);
 }
 
 /**
- * 쓸 Project 번호를 정한다. 설정에 있으면 그것, 없으면 소유자의 Project 가
+ * 쓸 Project 번호를 정한다. 설정에 있으면 그것, 없으면 넘겨받은 소유자의 Project 가
  * 정확히 하나일 때만 자동으로. 여러 개면 사람이 정해야 한다.
  */
 export function resolveProjectNumber(owner, config) {
@@ -344,10 +364,12 @@ export function resolveProjectNumber(owner, config) {
     const projects = ghJson(['project', 'list', '--owner', owner, '--format', 'json'])?.projects || [];
     if (projects.length === 1) return projects[0].number;
 
+    // 소유자를 함께 알린다 — 보드가 다른 소유자 밑에 있어서 못 찾은 경우,
+    // 어디를 찾았는지가 안 보이면 "Project 가 없다"로만 읽힌다.
     warnings.push(
         projects.length === 0
-            ? 'No GitHub Project found'
-            : `Found ${projects.length} Projects and cannot tell which to use. Set projectNumber in ${CONFIG_PATH}.`
+            ? `No GitHub Project found under "${owner}". If the board belongs to someone else, set projectOwner in ${CONFIG_PATH}.`
+            : `Found ${projects.length} Projects under "${owner}" and cannot tell which to use. Set projectNumber in ${CONFIG_PATH}.`
     );
     return null;
 }

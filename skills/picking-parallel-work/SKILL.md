@@ -35,6 +35,7 @@ Project 가 하나뿐이면 알아서 찾고, 영역은 `.github/labeler.yaml` �
 | 증상 | 채울 것 |
 | --- | --- |
 | "Project 가 N 개라 정하지 못했다" 경고 | `projectNumber` |
+| "그 소유자 밑에 Project 가 없다" 경고인데 보드는 있다 | `projectOwner` |
 | Priority·Status 값 이름이 다른 저장소 | `priorityField` / `statusField` / `priorityOrder` / `statusOrder` / `excludeStatuses` |
 | 새 워크트리에서 빌드가 설치물 없이 실패 | `setup` |
 | 새 세션을 창까지 열어 시작하고 싶다 | `launch: "session"` |
@@ -45,6 +46,11 @@ Project 가 하나뿐이면 알아서 찾고, 영역은 `.github/labeler.yaml` �
 gh project list --owner <소유자> --format json
 gh project field-list <번호> --owner <소유자> --format json
 ```
+
+`projectOwner` 는 저장소 소유자 밑에 보드가 없을 때만 필요하다. 저장소가 남의
+개인 계정에 있으면 그 아래에는 Project 를 만들 권한이 아예 없고, Projects v2 는
+소유자를 옮길 수 없어서(복사만 된다) 보드가 다른 소유자에 남는다. 그럴 때
+`gh project list --owner <내 계정>` 으로 찾아 그 소유자를 적는다.
 
 `setup` 은 저장소를 보고 채운다 — 영역 디렉터리에 `package.json` 이 있으면
 `npm install --prefix <영역>`, `requirements.txt` 가 있으면

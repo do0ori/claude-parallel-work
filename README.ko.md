@@ -202,6 +202,7 @@ locked 워크트리(세션이 아직 돌 수 있다), 커밋이 기본 브랜치
 | 증상 | 채울 것 |
 | --- | --- |
 | "Project 가 N 개라 정하지 못했다" 경고 | `projectNumber` |
+| "그 소유자 밑에 Project 가 없다" 경고인데 보드는 있다 | `projectOwner` |
 | Priority·Status 값 이름이 다른 저장소 | `priorityField` / `statusField` / `priorityOrder` / `statusOrder` |
 | 새 워크트리에서 빌드가 설치물 없이 실패 | `setup` |
 | 새 세션을 창까지 열어 시작하고 싶다 | `launch` |
@@ -215,6 +216,7 @@ locked 워크트리(세션이 아직 돌 수 있다), 커밋이 기본 브랜치
 ```json
 {
     "projectNumber": 1,
+    "projectOwner": "my-org",
     "priorityField": "Priority",
     "priorityOrder": ["P0", "P1", "P2"],
     "statusField": "Status",
@@ -234,6 +236,7 @@ locked 워크트리(세션이 아직 돌 수 있다), 커밋이 기본 브랜치
 | 키 | 뜻 |
 | --- | --- |
 | `projectNumber` | GitHub Project 번호. 생략하면 소유자의 Project 가 정확히 하나일 때만 자동으로 찾는다 |
+| `projectOwner` | Project 를 찾을 소유자. 기본은 저장소 소유자 — 보드가 다른 사용자·조직 밑에 있을 때 적는다 |
 | `priorityField` / `statusField` | Project 의 필드 이름 |
 | `priorityOrder` / `statusOrder` | 앞에 있을수록 먼저. `""` 는 값이 비어 있는 이슈 |
 | `excludeStatuses` | 이 Status 인 이슈는 후보에서 제외 |

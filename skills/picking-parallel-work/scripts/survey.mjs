@@ -38,7 +38,7 @@ import {
     git,
     loadConfig,
     NON_AREA_DIRS,
-    repoOwner,
+    projectOwner,
     repoRoot,
     resolveProjectNumber,
     uniqueWarnings,
@@ -236,7 +236,8 @@ function main() {
     const areaByNorm = areaLookup(areaNames);
     const defaultBranch = defaultBranchRef();
 
-    const owner = repoOwner();
+    // Project 조회에만 쓴다 — 이슈·PR 은 gh 가 현재 저장소를 알아서 본다.
+    const owner = projectOwner(config);
 
     const issues =
         ghJson([

@@ -185,6 +185,33 @@ function normalizeArea(name) {
         .replace(/[^a-z0-9]/g, '');
 }
 
+/**
+ * 설정에 적힌 값 중 이 이슈의 라벨에 있는 것. 없으면 빈 문자열.
+ *
+ * Project 가 없으면 Priority·Status 가 통째로 비어 순위 기준 2·4 가 죽고
+ * excludeStatuses 도 걸리지 않는다. 그런데 보드를 못 쓰는 저장소가 실제로 있다 —
+ * 저장소와 보드의 소유자가 달라 연결되지 않거나, 외부 협업자가 섞여 있어
+ * 보드 권한을 나눌 수 없거나(조직 기본 권한은 멤버에게만 적용된다). 보드가
+ * 없다고 순위와 제외가 함께 죽으면 이 도구의 본래 일이 안 된다.
+ *
+ * 그래서 같은 값을 라벨로도 들 수 있게 한다. 값 목록은 설정에서 온다 —
+ * 저장소 고유값을 코드에 박지 않는다.
+ *
+ * **보드 값이 있으면 그쪽이 이긴다.** 라벨은 폴백이다. 두 곳에 값이 있을 때
+ * 어느 쪽이 정본인지 헷갈리면 순위가 말없이 달라진다.
+ *
+ * 비교는 normalizeArea 와 같은 규칙이라, `in-progress` 라벨이 `In Progress`
+ * Status 와 맞고 `p0` 이 `P0` 과 맞는다.
+ */
+function labelValue(labels, values) {
+    const byNorm = new Map(values.filter(Boolean).map((v) => [normalizeArea(v), v]));
+    for (const label of labels) {
+        const hit = byNorm.get(normalizeArea(label));
+        if (hit) return hit;
+    }
+    return '';
+}
+
 /** 정규화한 이름 → 원래 영역 이름. 충돌하면 먼저 온 것을 남기고 알린다. */
 function areaLookup(areaNames) {
     const byNorm = new Map();
@@ -344,6 +371,9 @@ function main() {
         // 라벨 이름을 그대로 비교하지 않는다 — normalizeArea 의 설명을 보라.
         const areas = [...new Set(labels.map((l) => areaByNorm.get(normalizeArea(l))).filter(Boolean))];
         const meta = projectByIssue.get(issue.number) || {status: '', priority: ''};
+        // 보드에 값이 없으면 라벨에서 — labelValue 의 설명을 보라.
+        const priority = meta.priority || labelValue(labels, config.priorityOrder);
+        const status = meta.status || labelValue(labels, [...config.statusOrder, ...config.excludeStatuses]);
 
         const assignees = issue.assignees.map((a) => a.login);
         const others = me ? assignees.filter((a) => a !== me) : assignees;
@@ -365,7 +395,7 @@ function main() {
         if (openBlockers.length > 0) blockers.push(`blocked by #${openBlockers.join(', #')}`);
         if (openSubs.length > 0)
             blockers.push(`split into sub-issues still open (#${openSubs.join(', #')}) — pick one of those`);
-        if (config.excludeStatuses.includes(meta.status)) blockers.push(`${config.statusField} = ${meta.status}`);
+        if (config.excludeStatuses.includes(status)) blockers.push(`${config.statusField} = ${status}`);
         if (inFlight.has(issue.number)) blockers.push('referenced by an in-flight worktree or PR');
 
         return {
@@ -374,8 +404,8 @@ function main() {
             url: issue.url,
             labels,
             areas,
-            priority: meta.priority,
-            status: meta.status,
+            priority,
+            status,
             blockers,
             // 내가 선점만 해두고 아직 시작하지 않은 것. 막을 게 아니라 이어받을 것이다.
             minePending,

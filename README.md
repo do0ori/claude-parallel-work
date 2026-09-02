@@ -116,6 +116,22 @@ It still gets ranked; you just have to judge the overlap yourself.
 | 5 | Labels — `bug` > `enhancement` > everything else |
 | 6 | Issue number — older first |
 
+### Priority and Status without a Project
+
+Criteria 2 and 4 read the Project's fields, so with no Project they go quiet — and
+`excludeStatuses` stops filtering with them. Some repositories cannot use a board
+at all: the repository and the board have different owners and won't link, or
+outside collaborators are involved and a board's access cannot be shared with them
+(an organization's base permission reaches members only).
+
+So both values can live on the **issue** instead. A label whose name matches a value
+in `priorityOrder`, `statusOrder`, or `excludeStatuses` is read as that value —
+a `P0` label ranks like Priority `P0`, an `in-progress` label excludes like Status
+`In Progress`. Matching ignores case and punctuation, the same way area labels do.
+
+**The board wins when it has a value.** Labels are the fallback, so a value in two
+places never changes the ranking silently.
+
 ## Claiming
 
 There is no way to lock a GitHub issue atomically. If two people — or two sessions

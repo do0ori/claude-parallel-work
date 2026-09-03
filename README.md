@@ -199,6 +199,27 @@ and for you three sessions from now.
 It matters when working alone too. With no PR, a worktree shows up as `issue
 unknown` and the issue it's working on stays in the candidate list.
 
+## Rebase before you call it ready
+
+Finishing starts with catching up to the default branch:
+
+```bash
+git pull --rebase origin <default branch>
+```
+
+In parallel work this is not optional. The default branch keeps moving while you
+work — other sessions merge into it. Skip this and **CI passes on a stale base**,
+which is exactly how you get branches that each go green and still break once
+combined. After the rebase you need a `git push --force-with-lease` and a second
+green run before the PR is ready to merge.
+
+If it conflicts, **stop and say so** instead of resolving it alone: another session
+already changed the same place, and which side is right is a human call.
+
+Merging itself is a person's decision — green checks are not a merge signal. A
+review may still be open, and with several branches in flight the merge *order*
+is something to think about.
+
 ## Close the loop when it merges
 
 Claiming moves the Project status to `In Progress`. Nothing moves it back, so the
